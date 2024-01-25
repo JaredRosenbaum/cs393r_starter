@@ -43,6 +43,10 @@ using std::vector;
 using namespace math_util;
 using namespace ros_helpers;
 
+#define TIME_STEP 0.05
+#define MAX_SPEED 1.0
+#define MAX_ACCELERATION 4.0
+
 namespace {
 ros::Publisher drive_pub_;
 ros::Publisher viz_pub_;
@@ -51,6 +55,12 @@ VisualizationMsg global_viz_msg_;
 AckermannCurvatureDriveMsg drive_msg_;
 // Epsilon value for handling limited numerical precision.
 const float kEpsilon = 1e-5;
+
+// Time Optimal Controller variables
+float distance_traveled_ = 0;
+float goal_distance_ = 10;
+float control_speed_;
+
 } //namespace
 
 namespace navigation {
@@ -79,6 +89,8 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   global_viz_msg_ = visualization::NewVisualizationMessage(
       "map", "navigation_global");
   InitRosHeader("base_link", &drive_msg_.header);
+
+  controller_ = new TimeOptimalController(TIME_STEP, MAX_SPEED, MAX_ACCELERATION);
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
@@ -116,27 +128,41 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
   
+  // Print debug statement
+  std::cout << "x: " << distance_traveled_ << std::endl;
+  std::cout << "odom:" << sqrt(pow(odom_loc_[0] - odom_start_loc_[0], 2) + pow(odom_loc_[1] - odom_start_loc_[1], 2)) << std::endl;
+
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
 
+  // // Visualize pointcloud
+  // for (int i = 0; i < (int)point_cloud_.size(); i++) {
+  //   Vector2f p = point_cloud_[i];
+  //   visualization::DrawCross(p, 0.01, 0, local_viz_msg_);
+  // }
+
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
-  // The control iteration goes here. 
+  // Run the time optimal controller to calculate drive commands
+  float distance_left = goal_distance_ - distance_traveled_;
+  control_speed_ = controller_->CalculateSpeed(distance_left);
+  distance_traveled_ += control_speed_ * TIME_STEP;
 
-  // Feel free to make helper functions to structure the control appropriately.
-  
+  // The control iteration goes here.
+
   // The latest observed point cloud is accessible via "point_cloud_"
 
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = 0.0;
-  drive_msg_.velocity = 1;
+  drive_msg_.velocity = control_speed_;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
   global_viz_msg_.header.stamp = ros::Time::now();
   drive_msg_.header.stamp = ros::Time::now();
+
   // Publish messages.
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
