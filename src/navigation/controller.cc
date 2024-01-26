@@ -8,7 +8,7 @@
 
 #include "controller.h"
 
-TimeOptimalController::TimeOptimalController(float time_step, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width) :
+TimeOptimalController::TimeOptimalController(float time_step, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width, float length) :
 delta_t_(time_step),
 v_max_(max_speed), a_max_(max_acceleration),
 curv_max_(max_curvature), curv_step_(curvature_step),
@@ -43,12 +43,12 @@ float TimeOptimalController::CalculateSpeed(const float distance_left) {
 }
 
 void TimeOptimalController::EvaluatePaths(const std::vector<Vector2f>& point_cloud) {
-  float free_path;
-  float clearance;
-  float goal_distance;
-  float sel_free_path;
-  float sel_curv;
-  float max_score = -1.0;
+  // float free_path;
+  // float clearance;
+  // float goal_distance;
+  // float sel_free_path;
+  // float sel_curv;
+  // float max_score = -1.0;
 
   // Evaluate all possible paths and select optimal option
   for (float curv = -1 * curv_max_; curv < 1.01; curv += curv_step_) {
@@ -58,12 +58,12 @@ void TimeOptimalController::EvaluatePaths(const std::vector<Vector2f>& point_clo
     // goal_distance = CalculateGoalDistance();
 
     // Calculate score and update selection
-    float score = free_path + w1_ * clearance + w2_ * goal_distance;
-    if (score > max_score) {
-      max_score = score;
-      sel_free_path = free_path;
-      sel_curv = curv;
-    }
+    // float score = free_path + w1_ * clearance + w2_ * goal_distance;
+    // if (score > max_score) {
+    //   max_score = score;
+    //   sel_free_path = free_path;
+    //   sel_curv = curv;
+    // }
   }
 
   // TODO return selected free path length and curvature

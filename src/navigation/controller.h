@@ -19,7 +19,7 @@ using Eigen::Vector2f;
 
 class TimeOptimalController {
   public:
-    TimeOptimalController(float controller_frequency, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width);
+    TimeOptimalController(float controller_frequency, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width, float length);
 
     float CalculateSpeed(const float distance_left);
 
