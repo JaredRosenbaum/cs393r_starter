@@ -43,9 +43,13 @@ using std::vector;
 using namespace math_util;
 using namespace ros_helpers;
 
-#define TIME_STEP 0.05
-#define MAX_SPEED 1.0
-#define MAX_ACCELERATION 4.0
+#define TIME_STEP         0.05
+#define MAX_SPEED         1.0
+#define MAX_ACCELERATION  4.0
+#define MAX_CURVATURE     1.0
+#define CURVATURE_STEP    0.05
+#define CAR_WIDTH         0.481   // TODO Double check number
+#define CAR_LENGTH        0.5     // TODO Update with correct value
 
 namespace {
 ros::Publisher drive_pub_;
@@ -60,6 +64,7 @@ const float kEpsilon = 1e-5;
 float distance_traveled_ = 0;
 float goal_distance_ = 10;
 float control_speed_;
+float control_curvature_;
 
 } //namespace
 
@@ -90,7 +95,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
       "map", "navigation_global");
   InitRosHeader("base_link", &drive_msg_.header);
 
-  controller_ = new TimeOptimalController(TIME_STEP, MAX_SPEED, MAX_ACCELERATION);
+  controller_ = new TimeOptimalController(TIME_STEP, MAX_SPEED, MAX_ACCELERATION, MAX_CURVATURE, CURVATURE_STEP, CAR_WIDTH, CAR_LENGTH);
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
@@ -129,8 +134,8 @@ void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
   
   // Print debug statement
-  std::cout << "x: " << distance_traveled_ << std::endl;
-  std::cout << "odom:" << sqrt(pow(odom_loc_[0] - odom_start_loc_[0], 2) + pow(odom_loc_[1] - odom_start_loc_[1], 2)) << std::endl;
+  // std::cout << "x: " << distance_traveled_ << std::endl;
+  // std::cout << "odom:" << sqrt(pow(odom_loc_[0] - odom_start_loc_[0], 2) + pow(odom_loc_[1] - odom_start_loc_[1], 2)) << std::endl;
 
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
@@ -145,6 +150,8 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
+  controller_->CalculateFreePathLength(point_cloud_, 0.0);
+
   // Run the time optimal controller to calculate drive commands
   float distance_left = goal_distance_ - distance_traveled_;
   control_speed_ = controller_->CalculateSpeed(distance_left);
@@ -155,7 +162,7 @@ void Navigation::Run() {
   // The latest observed point cloud is accessible via "point_cloud_"
 
   // Eventually, you will have to set the control values to issue drive commands:
-  drive_msg_.curvature = 0.0;
+  drive_msg_.curvature = control_curvature_;
   drive_msg_.velocity = control_speed_;
 
   // Add timestamps to all messages.
