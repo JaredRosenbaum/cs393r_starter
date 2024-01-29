@@ -25,6 +25,8 @@
 
 #include "vector_map/vector_map.h"
 
+#include "controller.h"
+
 #ifndef NAVIGATION_H
 #define NAVIGATION_H
 
@@ -100,6 +102,8 @@ class Navigation {
   float nav_goal_angle_;
   // Map of the environment.
   vector_map::VectorMap map_;
+  // Controller object
+  TimeOptimalController *controller_;
 };
 
 }  // namespace navigation
