@@ -41,4 +41,20 @@ class TimeOptimalController {
 
 };
 
+// struct LatentCommands {
+//   Eigen::Vector2f velocity;
+//   Eigen::Vector2f curvature;
+
+// }; // struct LatentData
+
+// class LatencyController {
+
+//   public:
+
+//   private:
+//     queue
+//     TimeOptimalController *toc_;
+
+// }; // class LatencyController
+
 #endif  // CONTROLLER_H

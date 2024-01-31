@@ -17,25 +17,25 @@ width_(width), length_(length) {
   v_ = 0;   // car begins at rest
 }
 
-float TimeOptimalController::CalculateSpeed(const float distance_left) {
-  // TODO Someone double check my "distance_left > ..." calculations
+float TimeOptimalController::CalculateSpeed(const float free_path_length) {
+  // TODO Someone double check my "free_path_length > ..." calculations
 
   // Accelerate Case
   // Use kinematic equations to check if we have enough distance to accelerate one more time-step
-  if (v_ < v_max_ && distance_left > 
+  if (v_ < v_max_ && free_path_length > 
   ((v_ * delta_t_) + ((v_ + a_max_ * pow(delta_t_, 2)) / 2 ) + (pow(v_ + a_max_ * delta_t_, 2) / 2 * a_max_))) {
     v_ = v_ + a_max_ * delta_t_;  // speed increases by acceleration rate
   }
   // Cruise Case
   // Use kinematic equations to check if we have enough distance to cruise one more time-step
-  else if (v_ == v_max_ && distance_left > 
+  else if (v_ == v_max_ && free_path_length > 
   ((v_ + delta_t_) + (pow(v_, 2) / 2 * a_max_))) {
     ; // speed remains the same
   }
   // Decelerate Case
   // Not enough distance, calculate deceleration rate
   else {
-    float d = pow(v_, 2) / (2 * distance_left);
+    float d = pow(v_, 2) / (2 * free_path_length);
     v_ = v_ - d * delta_t_;  // speed decreases by acceleration rate
   }
 
@@ -93,3 +93,5 @@ void TimeOptimalController::CalculateFreePathLength(const std::vector<Vector2f>&
     // TODO
   }
 }
+
+// void TimeOptimalController::enumeratePaths();

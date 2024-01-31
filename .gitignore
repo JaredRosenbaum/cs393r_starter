@@ -3,3 +3,6 @@ build
 bin
 lib
 data
+
+commands.txt
+web_rviz.html

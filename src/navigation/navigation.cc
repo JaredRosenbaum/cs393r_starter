@@ -76,6 +76,7 @@ string GetMapFileFromName(const string& map) {
 }
 
 Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
+  // #
     odom_initialized_(false),
     localization_initialized_(false),
     robot_loc_(0, 0),
@@ -95,7 +96,10 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
       "map", "navigation_global");
   InitRosHeader("base_link", &drive_msg_.header);
 
+  // + 
+  // controller_ = new LatencyController();
   controller_ = new TimeOptimalController(TIME_STEP, MAX_SPEED, MAX_ACCELERATION, MAX_CURVATURE, CURVATURE_STEP, CAR_WIDTH, CAR_LENGTH);
+  // +
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
