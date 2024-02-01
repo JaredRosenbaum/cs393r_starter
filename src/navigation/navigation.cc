@@ -154,6 +154,7 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
+  // Note: curvature not theta for Calc FPL
   controller_->CalculateFreePathLength(point_cloud_, 0.0);
 
   // Run the time optimal controller to calculate drive commands

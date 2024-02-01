@@ -19,13 +19,13 @@ using Eigen::Vector2f;
 
 class TimeOptimalController {
   public:
-    TimeOptimalController(float controller_frequency, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width, float length);
+    TimeOptimalController(float controller_frequency, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width, float length, float wheelbase, float margin);
 
     float CalculateSpeed(const float distance_left);
 
     void EvaluatePaths(const std::vector<Vector2f>& point_cloud);
 
-    void CalculateFreePathLength(const std::vector<Vector2f>& point_cloud, float theta);
+    float CalculateFreePathLength(const std::vector<Vector2f>& point_cloud, float curvature);
 
   private:
     float delta_t_;     // Time step period
@@ -33,8 +33,10 @@ class TimeOptimalController {
     float a_max_;       // Max acceleration
     float curv_max_;    // Max curvature
     float curv_step_;   // Curvature step
-    float width_;       // Total width considered for obstacle detection
-    float length_;      // Total length considered for obstacle detection
+    float w_;       // Width
+    float l_;      // Length
+    float b_;        // Wheel base
+    float m_;      // Margin
 
     float x_;   // Current location
     float v_;   // Current speed

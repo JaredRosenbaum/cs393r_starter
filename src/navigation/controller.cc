@@ -8,11 +8,12 @@
 
 #include "controller.h"
 
-TimeOptimalController::TimeOptimalController(float time_step, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width, float length) :
+TimeOptimalController::TimeOptimalController(float time_step, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width, float length, float wheelbase, float margin) :
 delta_t_(time_step),
 v_max_(max_speed), a_max_(max_acceleration),
 curv_max_(max_curvature), curv_step_(curvature_step),
-width_(width), length_(length) {
+b_(wheelbase), m_(margin),
+w_(width), l_(length) {
   x_ = 0;   // car begins at 0;
   v_ = 0;   // car begins at rest
 }
@@ -69,29 +70,53 @@ void TimeOptimalController::EvaluatePaths(const std::vector<Vector2f>& point_clo
   // TODO return selected free path length and curvature
 }
 
-void TimeOptimalController::CalculateFreePathLength(const std::vector<Vector2f>& point_cloud, float theta) {
-  float min_d = 9.0;
+float TimeOptimalController::CalculateFreePathLength(const std::vector<Vector2f>& point_cloud, float curvature) {
+  float min_d = 9.0; //! Jared asks: Why 9?
   Vector2f p(0.0, 0.0);
 
   // Moving in a straight line
-  if (abs(theta) < 0.01) {
+  if (abs(curvature) < 0.01) {
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       p = point_cloud[i];
 
       // Update minimum free path length for lasers in front of car
-      if ((abs(p.y()) < width_ / 2) && p.x() < min_d) {
+      if ((abs(p.y()) < w_ / 2) && p.x() < min_d) {
         min_d = p.x();
       }
     } // At this point, d equals the minimum distance to an obstacle directly in front of the car. It does not account for car length.
 
     // Adjust d for car length and margin
-    min_d -= length_;
+    min_d -= (l_+b_)/2+m_;
   }
   // Moving along an arc
   else {
-    // TODO
+    float radius = 1.0/curvature;
+    // Loop through point cloud
+    for (int i = 0; i < (int)point_cloud.size(); i++) {
+      p = point_cloud[i];
+      //Check which one of the toruses the point lies within, if any
+      float r_p = sqrt(pow(p.x(),2)+pow((radius-p.y()),2));
+      float theta = atan2(p.x(),(radius-p.y()));
+      // Condition one: The point hits the inner side of the car.
+      if ((radius-w_/2-m_) <= r_p < sqrt(pow(radius-w_/2-m_,2)+pow((l_+b_)/2+m_,2))){
+        float psi = acos((radius-m_)/r_p);
+        float phi = theta - psi;
+        min_d = radius * phi;
+      }
+      // Condition two: The point hits the front of the car
+      else if(sqrt(pow(radius-w_/2-m_,2)+pow((l_+b_)/2+m_,2)) <= r_p <= sqrt(pow(radius+w_/2+m_,2)+pow((l_+b_)/2+m_,2))){
+        float psi = asin(((l_+b_)/2+m_)/r_p);
+        float phi = theta - psi;
+        min_d = radius * phi;
+      }
+      // Condition three: The point hits the outer rear side of the car. 
+      else if((radius+w_/2 <= r_p <= sqrt(pow(radius+w_/2+m_,2)+pow((l_-b_)/2+m_,2)))){
+        float psi = asin(p.x()/r_p);
+        float phi = theta - psi;
+        min_d = radius * phi;
+      }
+    }
   }
+  return min_d;
 }
-
-// void TimeOptimalController::enumeratePaths();
