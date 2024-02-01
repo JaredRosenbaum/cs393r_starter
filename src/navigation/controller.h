@@ -23,6 +23,10 @@ class TimeOptimalController {
 
     float CalculateSpeed(const float distance_left);
 
+    float CalculateClearance(float curvature);
+
+    float CalculateDistanceToGoal();
+
     void EvaluatePaths(const std::vector<Vector2f>& point_cloud);
 
     float CalculateFreePathLength(const std::vector<Vector2f>& point_cloud, float curvature);

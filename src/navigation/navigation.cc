@@ -48,8 +48,11 @@ using namespace ros_helpers;
 #define MAX_ACCELERATION  4.0
 #define MAX_CURVATURE     1.0
 #define CURVATURE_STEP    0.05
-#define CAR_WIDTH         0.481   // TODO Double check number
+#define CAR_WIDTH         0.265   // TODO Double check number
 #define CAR_LENGTH        0.5     // TODO Update with correct value
+#define CAR_WHEELBASE     0.345
+#define CAR_TRACK_WIDTH   0.227
+#define CAR_MARGIN        0.05
 
 namespace {
 ros::Publisher drive_pub_;
@@ -98,7 +101,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
 
   // + 
   // controller_ = new LatencyController();
-  controller_ = new TimeOptimalController(TIME_STEP, MAX_SPEED, MAX_ACCELERATION, MAX_CURVATURE, CURVATURE_STEP, CAR_WIDTH, CAR_LENGTH);
+  controller_ = new TimeOptimalController(TIME_STEP, MAX_SPEED, MAX_ACCELERATION, MAX_CURVATURE, CURVATURE_STEP, CAR_WIDTH, CAR_LENGTH, CAR_WHEELBASE, CAR_TRACK_WIDTH, CAR_MARGIN);
   // +
 }
 
