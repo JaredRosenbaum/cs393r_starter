@@ -81,7 +81,7 @@ float TimeOptimalController::CalculateFreePathLength(const std::vector<Vector2f>
       p = point_cloud[i];
 
       // Update minimum free path length for lasers in front of car
-      if ((abs(p.y()) < w_ / 2) && p.x() < min_d) {
+      if ((abs(p.y()) < w_ / 2 + m_) && p.x() < min_d) {
         min_d = p.x();
       }
     } // At this point, d equals the minimum distance to an obstacle directly in front of the car. It does not account for car length.
