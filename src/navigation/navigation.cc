@@ -48,9 +48,9 @@ using namespace ros_helpers;
 #define MAX_ACCELERATION  4.0
 #define MAX_CURVATURE     1.0
 #define CURVATURE_STEP    0.05
-#define CAR_WIDTH         0.265   // TODO Double check number
-#define CAR_LENGTH        0.5     // TODO Update with correct value
-#define CAR_WHEELBASE     0.345
+#define CAR_WIDTH         0.281   // TODO Double check number
+#define CAR_LENGTH        0.535     // TODO Update with correct value
+#define CAR_WHEELBASE     0.324
 #define CAR_TRACK_WIDTH   0.227
 #define CAR_MARGIN        0.05
 
