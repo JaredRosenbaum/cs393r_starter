@@ -64,8 +64,9 @@ AckermannCurvatureDriveMsg drive_msg_;
 const float kEpsilon = 1e-5;
 
 // Time Optimal Controller variables
-float distance_traveled_ = 0;
-float goal_distance_ = 10;
+//+
+// float distance_traveled_ = 0;
+// float goal_distance_ = 10;
 float control_speed_;
 float control_curvature_;
 
@@ -148,6 +149,8 @@ void Navigation::Run() {
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
 
+  //+
+  control_curvature_ = 0.5;
   // // Visualize pointcloud
   // for (int i = 0; i < (int)point_cloud_.size(); i++) {
   //   Vector2f p = point_cloud_[i];
@@ -158,12 +161,14 @@ void Navigation::Run() {
   if (!odom_initialized_) return;
 
   // Note: curvature not theta for Calc FPL
-  controller_->CalculateFreePathLength(point_cloud_, 0.0);
+  float fpl = controller_->CalculateFreePathLength(point_cloud_, control_curvature_);
+  // cout << fpl << std::endl;
 
   // Run the time optimal controller to calculate drive commands
-  float distance_left = goal_distance_ - distance_traveled_;
-  control_speed_ = controller_->CalculateSpeed(distance_left);
-  distance_traveled_ += control_speed_ * TIME_STEP;
+  //todo get distance left from free path lenght?
+  // float distance_left = goal_distance_ - distance_traveled_;
+  control_speed_ = controller_->CalculateSpeed(fpl);
+  // distance_traveled_ += control_speed_ * TIME_STEP;
 
   // The control iteration goes here.
 

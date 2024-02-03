@@ -58,7 +58,7 @@ void TimeOptimalController::EvaluatePaths(const std::vector<Vector2f>& point_clo
   for (float curv = -curv_max_; curv <= curv_max_; curv += curv_step_) {
     // Calculate free path lenght, clearance, and distance to goal
     // free_path = CalculateFreePathLength(point_cloud, curv);
-    // clearance = CalculateClearance();
+    // clearance = CalculateClearance(point_cloud, curv, free_path);
     // goal_distance = CalculateDistanceToGoal();
 
     // Calculate score and update selection
@@ -102,8 +102,7 @@ float TimeOptimalController::CalculateFreePathLength(const std::vector<Vector2f>
       float r_p = sqrt(pow(p.x(),2)+pow((radius-p.y()),2));
       float theta = atan2(p.x(),(radius-p.y()));
       // Condition one: The point hits the inner side of the car.
-      // .Theta > 0 
-      if (((radius-w_/2-m_) <= r_p) && (r_p < sqrt(pow(radius-w_/2-m_,2)+pow((l_+b_)/2+m_,2)))){
+      if (theta >= 0 &&((radius-w_/2-m_) <= r_p) && (r_p < sqrt(pow(radius-w_/2-m_,2)+pow((l_+b_)/2+m_,2)))){
         float psi = acos((radius-w_/2-m_)/r_p);
         float phi = theta - psi;
         if (radius*phi < fpl_){
@@ -111,8 +110,7 @@ float TimeOptimalController::CalculateFreePathLength(const std::vector<Vector2f>
         }
       }
       // Condition two: The point hits the front of the car
-      //. Theta > 0
-      if ((sqrt(pow(radius-w_/2-m_,2)+pow((l_+b_)/2+m_,2)) <= r_p) && (r_p <= sqrt(pow(radius+w_/2+m_,2)+pow((l_+b_)/2+m_,2)))){
+      if (theta >= 0 && (sqrt(pow(radius-w_/2-m_,2)+pow((l_+b_)/2+m_,2)) <= r_p) && (r_p <= sqrt(pow(radius+w_/2+m_,2)+pow((l_+b_)/2+m_,2)))){
         float psi = asin(((l_+b_)/2+m_)/r_p);
         float phi = theta - psi;
         if (radius*phi < fpl_){
@@ -120,14 +118,17 @@ float TimeOptimalController::CalculateFreePathLength(const std::vector<Vector2f>
         }
       }
       // Condition three: The point hits the outer rear side of the car. 
-      //. Theta < 0 
-      if (((radius+w_/2 <= r_p) && (r_p <= sqrt(pow(radius+w_/2+m_,2)+pow((l_-b_)/2+m_,2))))){
-        float psi = asin(p.x()/r_p);
-        float phi = theta - psi;
-        if (radius*phi < fpl_){
-          fpl_ = radius * phi;
-        }
-      }
+      // TODO
+      //NOTE: Jared needs to fix this part. Leave it to me! :D
+      //. Theta < 0? 
+      // if (theta <= 0 && ((radius+w_/2 <= r_p) && (r_p <= sqrt(pow(radius+w_/2+m_,2)+pow((l_-b_)/2+m_,2))))){
+      //   std::cout << r_p << std::endl;
+      //   // float psi = asin(p.x()/r_p);
+      //   // float phi = theta - psi;
+      //   // if (radius*phi < fpl_){
+      //   //   fpl_ = radius * phi;
+      //   // }
+      // }
     }
   }
   return fpl_;
