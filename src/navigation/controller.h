@@ -12,6 +12,8 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <queue>
+#include <chrono>
 
 #include "eigen3/Eigen/Dense"
 
@@ -48,20 +50,33 @@ class TimeOptimalController {
 
 };
 
-// struct LatentCommands {
-//   Eigen::Vector2f velocity;
-//   Eigen::Vector2f curvature;
+namespace LatencyCompensation {
 
-// }; // struct LatentData
+// For storing command history within the 
+struct LatentCommand {
+  float velocity;
+  float curvature;
+  std::chrono::milliseconds timestamp;
+  LatentCommand (float v, float c) : velocity(v), curvature(c) {
+    timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+  }
+}; // struct LatentData
 
-// class LatencyController {
+class LatencyController {
 
-//   public:
+  public:
+    LatencyController(float latency, float controller_frequency, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width, float length, float wheelbase, float margin);
+    ~LatencyController();
+    void recordCommand(const LatentCommand command);
+    void recordCommand(const float v, const float c);
 
-//   private:
-//     queue
-//     TimeOptimalController *toc_;
+  private:
+    float latency_;
+    std::queue<LatentCommand> command_history_;
+    TimeOptimalController *toc_;
 
-// }; // class LatencyController
+}; // class LatencyController
+
+} // namespace LatencyCompensation
 
 #endif  // CONTROLLER_H

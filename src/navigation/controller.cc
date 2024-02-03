@@ -9,6 +9,10 @@
 #include "controller.h"
 #include "functions.h"
 
+// -------------------------------------------------------------------------
+// * 1D TIME-OPTIMAL CONTROL
+// -------------------------------------------------------------------------
+
 TimeOptimalController::TimeOptimalController(float time_step, float max_speed, float max_acceleration, float max_curvature, float max_clearance, float curvature_step, float width, float length, float wheelbase, float margin) :
 delta_t_(time_step),
 v_max_(max_speed), a_max_(max_acceleration),
@@ -185,3 +189,68 @@ float TimeOptimalController::CalculateDistanceToGoal(){
   return 0.0; //Placeholder so it builds
 }
 
+// -------------------------------------------------------------------------
+// * LATENCY COMPENSATION
+// -------------------------------------------------------------------------
+
+namespace LatencyCompensation {
+
+// -------------------------------------------------------------------------
+// & constructor & destructor
+// -------------------------------------------------------------------------
+LatencyController::LatencyController(float latency, float controller_frequency, float max_speed, float max_acceleration, float max_curvature, float curvature_step, float width, float length, float wheelbase, float margin) : latency_(latency) // : toc_(controller_frequency, max_speed, max_acceleration, max_curvature, curvature_step, width, length);
+{
+  // create a new TimeOptimalController to use
+  toc_ = new TimeOptimalController(controller_frequency, max_speed, max_acceleration, max_curvature, curvature_step, width, length, wheelbase, margin);
+}
+
+LatencyController::~LatencyController()
+{
+  delete toc_;
+}
+
+// -------------------------------------------------------------------------
+// & adding to command history
+// -------------------------------------------------------------------------
+void LatencyController::recordCommand(const LatentCommand command)
+{
+  // add the command to the command history
+  command_history_.push(command);
+}
+
+void LatencyController::recordCommand(const float v, const float c)
+{
+  // add the command to the command history
+  LatencyController::recordCommand(LatentCommand(v, c));
+}
+
+// -------------------------------------------------------------------------
+// & projecting forward
+// -------------------------------------------------------------------------
+// TODO project the car forward however many timesteps we want
+// TODO transform points into that frame
+// TODO pass the updated information to the 1D time-optimal controller
+
+void LatencyController::projectForward(std::chrono::milliseconds timestamp)
+{
+  
+}
+
+void LatencyController::updateController(std::vector<Eigen::Vector2f> point_cloud)
+{
+  // using latency, and history of results, project the car's position and velocity forward through time
+  // LatencyController::projectForward();
+
+  // use this forward projection to transform the point cloud
+
+  // feed these updated parameters into the 1D time-optimal controller
+
+  // receive a response from the 1D TOC and record it, then bubble it back out to the main
+
+}
+
+} // namespace LatencyCompensation
+
+// -------------------------------------------------------------------------
+// * FIN
+// -------------------------------------------------------------------------
