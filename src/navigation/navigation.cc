@@ -48,11 +48,12 @@ using namespace ros_helpers;
 #define MAX_ACCELERATION  4.0
 #define MAX_CURVATURE     1.0
 #define CURVATURE_STEP    0.05
-#define CAR_WIDTH         0.281   // TODO Double check number
-#define CAR_LENGTH        0.535     // TODO Update with correct value
+#define CAR_WIDTH         0.281
+#define CAR_LENGTH        0.535
 #define CAR_WHEELBASE     0.324
 #define CAR_TRACK_WIDTH   0.227
 #define CAR_MARGIN        0.05
+
 
 namespace {
 ros::Publisher drive_pub_;
@@ -65,7 +66,7 @@ const float kEpsilon = 1e-5;
 
 // Time Optimal Controller variables
 float distance_traveled_ = 0;
-float goal_distance_ = 10;
+// float goal_distance_ = 10;
 float control_speed_;
 float control_curvature_;
 
@@ -158,11 +159,14 @@ void Navigation::Run() {
   if (!odom_initialized_) return;
 
   // Note: curvature not theta for Calc FPL
-  controller_->CalculateFreePathLength(point_cloud_, 0.0);
+  control_curvature_ = 0.3;
+  float fpl = controller_->CalculateFreePathLength(point_cloud_, control_curvature_);
+  std::cout << fpl << std::endl;
 
   // Run the time optimal controller to calculate drive commands
-  float distance_left = goal_distance_ - distance_traveled_;
-  control_speed_ = controller_->CalculateSpeed(distance_left);
+  // float distance_left = goal_distance_ - distance_traveled_;
+  control_speed_ = controller_->CalculateSpeed(fpl);
+  std::cout << "  " << control_speed_ << std::endl;
   distance_traveled_ += control_speed_ * TIME_STEP;
 
   // The control iteration goes here.

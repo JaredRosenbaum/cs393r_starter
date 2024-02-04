@@ -37,14 +37,16 @@ class TimeOptimalController {
     float a_max_;       // Max acceleration
     float curv_max_;    // Max curvature
     float curv_step_;   // Curvature step
+    float w_;           // Width
+    float l_;           // Length
+    float b_;           // Wheel base
+    float m_;           // Margin
     float c_max_;       // Max Clearance
-    float b_;        // Wheel base
-    float m_;      // Margin
-    float w_;       // Width
-    float l_;      // Length
 
     float x_;   // Current location
     float v_;   // Current speed
+
+    const float lidar_max_range_ = 10.0;
 
 };
 
