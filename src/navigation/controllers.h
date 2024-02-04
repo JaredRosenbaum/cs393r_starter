@@ -62,24 +62,10 @@ class Controller {
 
   private:
     vehicles::Car *car_;
-    float control_interval_;
-    float margin_;
-    float max_clearance_;
-    float curvature_sampling_interval_;
-
-    // float delta_t_;     // Time step period
-    // float v_max_;       // Max speed
-    // float a_max_;       // Max acceleration
-    // float curv_max_;    // Max curvature
-    // float curv_step_;   // Curvature step
-    // float c_max_;       // Max Clearance
-    // float b_;        // Wheel base
-    // float m_;      // Margin
-    // float w_;       // Width
-    // float l_;      // Length
-
-    // float x_;   // Current location
-    // float v_;   // Current speed
+    float control_interval_;    // Time step period
+    float margin_;              // Margin of error around car
+    float max_clearance_;       // TODO
+    float curvature_sampling_interval_; // Dicretization of curvature paths
 };
 
 } // namespace time_optimal_1D

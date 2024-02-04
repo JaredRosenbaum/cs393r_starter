@@ -5,8 +5,8 @@
 #define MAX_ACCELERATION                4.0     // m/s^2
 #define MAX_CURVATURE                   1.0     // m^(-1)
 #define CURVATURE_SAMPLING_INTERVAL     0.05    // m
-#define CAR_WIDTH                       0.281   // m  // TODO Double check number
-#define CAR_LENGTH                      0.535   // m    // TODO Update with correct value
+#define CAR_WIDTH                       0.281   // m
+#define CAR_LENGTH                      0.535   // m
 #define CAR_WHEELBASE                   0.324   // m
 #define CAR_TRACK_WIDTH                 0.227   // m
 #define CAR_MARGIN                      0.05    // m

@@ -57,13 +57,6 @@ AckermannCurvatureDriveMsg drive_msg_;
 // Epsilon value for handling limited numerical precision.
 const float kEpsilon = 1e-5;
 
-// +
-// Time Optimal Controller variables
-float distance_traveled_ = 0;
-// float goal_distance_ = 10;
-float control_speed_;
-float control_curvature_;
-
 } //namespace
 
 namespace navigation {
@@ -138,10 +131,6 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
-  
-  // Print debug statement
-  // std::cout << "x: " << distance_traveled_ << std::endl;
-  // std::cout << "odom:" << sqrt(pow(odom_loc_[0] - odom_start_loc_[0], 2) + pow(odom_loc_[1] - odom_start_loc_[1], 2)) << std::endl;
 
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
@@ -157,41 +146,21 @@ void Navigation::Run() {
   if (!odom_initialized_) return;
 
   // The control iteration goes here.
-  // Note: curvature not theta for Calc FPL
-  control_curvature_ = 0.3;
-  float fpl = controller_->CalculateFreePathLength(point_cloud_, control_curvature_);
-  std::cout << fpl << std::endl;
-
-  // Run the time optimal controller to calculate drive commands
-  // float distance_left = goal_distance_ - distance_traveled_;
-  control_speed_ = controller_->CalculateSpeed(fpl);
-  std::cout << "  " << control_speed_ << std::endl;
-  distance_traveled_ += control_speed_ * TIME_STEP;
-
-  // The control iteration goes here.
-
-  // float fpl = controller_->calculateFreePathLength(point_cloud_, 0.0);
-  // std::cout << "FPL: " << fpl << std::endl;
-
-  // Run the time optimal controller to calculate drive commands
-  // float distance_left = goal_distance_ - distance_traveled_;
-  // std::cout << "Distance: " << distance_left << std::endl;
-  // std::cout << "Distance: " << control_curvature_ << std::endl;
-  // control_speed_ = controller_->calculateControlSpeed(robot_vel_(0), fpl);
-  // std::cout << "Speed: " << control_speed_ << std::endl;
-  // distance_traveled_ += control_speed_ * TIME_STEP;
-
-  // & in the future, this should just be:
-  controllers::time_optimal_1D::ControlCommand command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
-  drive_msg_.curvature = command.curvature;
-  drive_msg_.velocity = command.velocity;
-  // &
-  
   // The latest observed point cloud is accessible via "point_cloud_"
 
+  // TODO Used for testing, remove later
+  controllers::time_optimal_1D::ControlCommand command{0.0, -0.35};
+  float fpl = controller_->calculateFreePathLength(point_cloud_, command.curvature);
+  command.velocity = controller_->calculateControlSpeed(robot_vel_(0), fpl);
+  std::cout << fpl << std::endl;
+  std::cout << "  " << command.velocity << std::endl;
+
+  // Run the time optimal controller to calculate drive commands
+  // controllers::time_optimal_1D::ControlCommand command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+
   // Eventually, you will have to set the control values to issue drive commands:
-  // drive_msg_.curvature = control_curvature_;
-  // drive_msg_.velocity = control_speed_;
+  drive_msg_.curvature = command.curvature;
+  drive_msg_.velocity = command.velocity;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
