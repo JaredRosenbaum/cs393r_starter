@@ -11,4 +11,4 @@
 #define CAR_TRACK_WIDTH                 0.227   // m
 #define CAR_MARGIN                      0.05    // m
 
-#define MAX_CLEARANCE                   1.0     // m // & is this necessary?
+#define MAX_CLEARANCE                   0.5     // m // & is this necessary?

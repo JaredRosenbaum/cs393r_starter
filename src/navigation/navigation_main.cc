@@ -95,15 +95,13 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   // msg.ranges[i] // The range of the i'th ray
 
   static vector<Vector2f> point_cloud_;   // vector of (x,y) coordinates
-  Vector2f p(0.0, 0.0);                   // (x,y) position vector
-  float theta = msg.angle_min;            // angle of laser in reference to x-axis
 
   // Convert the LaserScan to a point cloud
-  for (int i = 0; i < (int)msg.ranges.size(); i++) {
-    p.x() = msg.ranges[i] * cos(theta) + kLaserLoc.x();
-    p.y() = msg.ranges[i] * sin(theta);
-    point_cloud_.push_back(p);
-    theta += msg.angle_increment;
+  int i {};
+  point_cloud_.clear();
+  for (float theta = msg.angle_min; theta <= msg.angle_max; theta += msg.angle_increment) {
+    point_cloud_.push_back(Eigen::Vector2f {msg.ranges[i] * cos(theta) + kLaserLoc.x(), msg.ranges[i] * sin(theta) + kLaserLoc.y()});
+    i++;
   }
   // +
 

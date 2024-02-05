@@ -77,63 +77,130 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
       }
     }
   } else { // Moving along an arc
-    float radius {1.0f / curvature};
+    if (curvature > 0) {    // Left turn
+      float radius {1.0f / curvature};
 
-    // calculating values that will be useful so we don't have to calculate them each iteration
-    float inside_rear_axle_radius {radius - (margin_ + car_->dimensions_.width_ / 2)};
-    float inside_front_corner_radius {(float)sqrt(pow(radius - (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
-    float outside_front_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
-    // float outside_rear_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2, 2))};
-    // float outside_rear_axle_radius {radius + (margin_ + car_->dimensions_.width_ / 2)};
+      // calculating values that will be useful so we don't have to calculate them each iteration
+      float inside_rear_axle_radius {radius - (margin_ + car_->dimensions_.width_ / 2)};
+      float inside_front_corner_radius {(float)sqrt(pow(radius - (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
+      float outside_front_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
+      float outside_rear_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2, 2))};
+      // float outside_rear_axle_radius {radius + (margin_ + car_->dimensions_.width_ / 2)};
 
-    // Loop through point cloud
-    for (int i = 0; i < (int)point_cloud.size(); i++) {
-      point = point_cloud[i];
+      // Loop through point cloud
+      for (int i = 0; i < (int)point_cloud.size(); i++) {
+        point = point_cloud[i];
 
-      // Check which one of the toruses the point lies within, if any
-      float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2)); // - note: no x-component because this is expressed in the car's base link
-      float theta = atan2(point.x(), (radius - point.y()));
+        // Check which one of the toruses the point lies within, if any
+        float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2)); // - note: no x-component because this is expressed in the car's base link
+        float theta = atan2(point.x(), (radius - point.y()));
 
-      // if point radius is < minimum radius of any point on car, it will never be an obstacle
-      if (point_radius < inside_rear_axle_radius) {continue;}
-      
-      // TODO This statement breaks obstacle detection on right turns... Remove for now
-      // likewise, if point radius is > than the maximum radius of any point on the car, it will never be an obstacle
-      // if (point_radius > std::max(outside_front_corner_radius, outside_rear_corner_radius)) {continue;}
+        // if point radius is < minimum radius of any point on car, it will never be an obstacle
+        if (point_radius < inside_rear_axle_radius) {continue;}
 
-      // Condition one: The point hits the inner side of the car
-      // if radius is also less than the radius of the front inside corner
-      if (((theta > 0)) && (point_radius >= inside_rear_axle_radius) && (point_radius < inside_front_corner_radius)) {
-        float psi = acos(inside_rear_axle_radius / point_radius);
-        float phi = theta - psi;
-        if (radius * phi < free_path_length) {
-          free_path_length = radius * phi;
+        // likewise, if point radius is > than the maximum radius of any point on the car, it will never be an obstacle
+        if (point_radius > std::max(outside_front_corner_radius, outside_rear_corner_radius)) {continue;}
+
+        // Condition one: The point hits the inner side of the car
+        // if radius is also less than the radius of the front inside corner
+        if (((theta > 0)) && (point_radius >= inside_rear_axle_radius) && (point_radius < inside_front_corner_radius)) {
+          float psi = acos(inside_rear_axle_radius / point_radius);
+          float phi = theta - psi;
+          if (radius * phi < free_path_length) {
+            free_path_length = radius * phi;
+          }
         }
-      }
 
-      // Condition two: The point hits the front of the car
-      // if radius also falls within the radii of the front corners
-      else if ((theta > 0) && (inside_front_corner_radius <= point_radius) && (point_radius < outside_front_corner_radius)) {
-        float psi = asin((margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2) / point_radius);
-        float phi = theta - psi;
-        if (radius * phi < free_path_length) {
-          free_path_length = radius * phi;
+        // Condition two: The point hits the front of the car
+        // if radius also falls within the radii of the front corners
+        else if ((theta > 0) && (inside_front_corner_radius <= point_radius) && (point_radius < outside_front_corner_radius)) {
+          float psi = asin((margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2) / point_radius);
+          float phi = theta - psi;
+          if (radius * phi < free_path_length) {
+            free_path_length = radius * phi;
+          }
         }
+
+        // TODO Revisit this.
+        // Condition three: The point hits the outer rear side of the car
+        // if radius is greater than outside rear axle radius and less than the radius of the outside rear corner
+        // if ((outside_rear_axle_radius <= point_radius) && (point_radius < outside_rear_corner_radius)) {
+        //   if ((std::abs(point.x()) < margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2) && (margin_ + (car_->dimensions_.width_ / 2) < std::abs(point.y()))) {
+        //     float psi = -1 * acos(outside_rear_axle_radius / point_radius);
+        //     float phi = theta - psi;
+        //     if (radius * phi < free_path_length) {
+        //       free_path_length = radius * phi;
+        //     }
+        //   }
+        // }
       }
-      
-      // TODO Figure out outside hit scenario
-      // Condition three: The point hits the outer rear side of the car
-      // if radius is greater than outside rear axle radius and less than the radius of the outside rear corner
-      // if ((outside_rear_axle_radius <= point_radius) && (point_radius < outside_rear_corner_radius)) {
-      //   float psi = acos(outside_rear_axle_radius / point_radius);
-      //   float phi = theta - psi;
-      //   if (radius * phi < free_path_length) {
-      //     free_path_length = radius * phi;
-      //   }
-      // }
     }
+    else {  // Right turn
+      float radius {-1.0f / curvature};
+
+      // calculating values that will be useful so we don't have to calculate them each iteration
+      float inside_rear_axle_radius {radius - (margin_ + car_->dimensions_.width_ / 2)};
+      float inside_front_corner_radius {(float)sqrt(pow(radius - (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
+      float outside_front_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
+      float outside_rear_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2, 2))};
+      // float outside_rear_axle_radius {radius + (margin_ + car_->dimensions_.width_ / 2)};
+
+      // Loop through point cloud
+      for (int i = 0; i < (int)point_cloud.size(); i++) {
+        point = point_cloud[i];
+
+        // Check which one of the toruses the point lies within, if any
+        float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2)); // - note: no x-component because this is expressed in the car's base link
+        float theta = atan2(point.x(), (radius + point.y()));
+
+        // if point radius is < minimum radius of any point on car, it will never be an obstacle
+        if (point_radius < inside_rear_axle_radius) {continue;}
+
+        // likewise, if point radius is > than the maximum radius of any point on the car, it will never be an obstacle
+        if (point_radius > std::max(outside_front_corner_radius, outside_rear_corner_radius)) {continue;}
+
+        // Condition one: The point hits the inner side of the car
+        // if radius is also less than the radius of the front inside corner
+        if (((theta > 0)) && (point_radius >= inside_rear_axle_radius) && (point_radius < inside_front_corner_radius)) {
+          float psi = acos(inside_rear_axle_radius / point_radius);
+          float phi = theta - psi;
+          if (radius * phi < free_path_length) {
+            std::cout << "A" << std::endl;
+            free_path_length = radius * phi;
+          }
+        }
+
+        // TODO If statement is going in when there is an obstacle behind the car
+        // Condition two: The point hits the front of the car
+        // if radius also falls within the radii of the front corners
+        else if ((theta > 0) && (inside_front_corner_radius <= point_radius) && (point_radius < outside_front_corner_radius)) {
+          float psi = asin((margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2) / point_radius);
+          float phi = theta - psi;
+          if (radius * phi < free_path_length) {
+            std::cout << "B " << theta << " " << psi << std::endl;
+            std::cout << "b " << inside_front_corner_radius << " " << point_radius << " " << outside_front_corner_radius << std::endl;
+            free_path_length = radius * phi;
+          }
+        }
+
+        // TODO Revisit this.
+        // Condition three: The point hits the outer rear side of the car
+        // if radius is greater than outside rear axle radius and less than the radius of the outside rear corner
+        // if ((outside_rear_axle_radius <= point_radius) && (point_radius < outside_rear_corner_radius)) {
+        //   if ((std::abs(point.x()) < margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2) && (margin_ + (car_->dimensions_.width_ / 2) < std::abs(point.y()))) {
+        //     float psi = -1 * acos(outside_rear_axle_radius / point_radius);
+        //     float phi = theta - psi;
+        //     if (radius * phi < free_path_length) {
+        //       free_path_length = radius * phi;
+        //     }
+        //   }
+        // }
+      }
+    }
+
   }
-  return std::max(free_path_length, 0.0f);
+  return free_path_length;
+  // return std::max(free_path_length, 0.0f);
 }
 
 float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, const float curvature, const float free_path_length)
@@ -147,6 +214,7 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
       point = point_cloud[i];
 
       // If the point lies between the car and the obstacle at the end of the free path, and within the side of the car and the maximum clearance, check clearance. If lower, replace.
+      // TODO First check might be backwards
       if ((car_->dimensions_.width_ / 2 <= point.y() && point.y() <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2))) {
         float clearance = abs(point.y()) - car_->dimensions_.wheelbase_ / 2;
         if (clearance < min_clearance) {
@@ -186,6 +254,12 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
   return min_clearance;
 }
 
+// TODO
+float Controller::calculateDistanceToGoal()
+{
+  return 0.0; //Placeholder so it builds
+}
+
 PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud)
 {
   // creating starting path (with terrible score)
@@ -220,12 +294,6 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
 
   // return best path
   return best_path;
-}
-
-// TODO
-float Controller::calculateDistanceToGoal(){
-
-  return 0.0; //Placeholder so it builds
 }
 
 ControlCommand Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed)

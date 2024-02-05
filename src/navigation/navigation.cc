@@ -149,7 +149,7 @@ void Navigation::Run() {
   // The latest observed point cloud is accessible via "point_cloud_"
 
   // TODO Used for testing, remove later
-  controllers::time_optimal_1D::ControlCommand command{0.0, -0.35};
+  controllers::time_optimal_1D::ControlCommand command{0.0, -0.45};
   float fpl = controller_->calculateFreePathLength(point_cloud_, command.curvature);
   command.velocity = controller_->calculateControlSpeed(robot_vel_(0), fpl);
   std::cout << fpl << std::endl;
