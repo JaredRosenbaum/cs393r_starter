@@ -156,26 +156,35 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
-
       // If the point lies between the car and the obstacle at the end of the free path, and within the side of the car and the maximum clearance, check clearance. If lower, replace.
-      // TODO First check might be backwards
-      if ((car_->dimensions_.width_ / 2 <= point.y() && point.y() <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2))) {
-        float clearance = abs(point.y()) - car_->dimensions_.wheelbase_ / 2;
+      // TODO The second part of this could use a shortening (as described in class on 2/5/24)
+      if ((car_->dimensions_.width_ / 2 + margin_ <= abs(point.y()) && abs(point.y()) <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2))) {
+        float clearance = abs(point.y()) - car_->dimensions_.wheelbase_ / 2 - margin_;
         if (clearance < min_clearance) {
           min_clearance = clearance;
         }
       }
     }
   } else { // Moving along an arc
+    
     float radius {1.0f / curvature};
+    // Handle right turn
+    if (curvature < 0) {
+      radius *= -1;
+    }
 
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
+      if (curvature < 0) {
+          point.y() *= -1;
+      }
+
       float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2));
       float theta = atan2(point.x(), (radius - point.y()));
       float phi = free_path_length / radius;
 
+      //TODO: Check that the point cloud mirroring works for right turn
       // First check the points that lie along the free path
       if ((0 <= theta && theta <= phi) && (radius - car_->dimensions_.width_ / 2 - max_clearance_ <= point_radius && point_radius <= radius + car_->dimensions_.width_ / 2 + max_clearance_)) {
         float clearance = abs(point_radius - radius) - car_->dimensions_.width_ / 2;
