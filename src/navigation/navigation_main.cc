@@ -100,7 +100,9 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
   int i {};
   point_cloud_.clear();
   for (float theta = msg.angle_min; theta <= msg.angle_max; theta += msg.angle_increment) {
-    point_cloud_.push_back(Eigen::Vector2f {msg.ranges[i] * cos(theta) + kLaserLoc.x(), msg.ranges[i] * sin(theta) + kLaserLoc.y()});
+    if (msg.ranges[i] < msg.range_max){
+      point_cloud_.push_back(Eigen::Vector2f {msg.ranges[i] * cos(theta) + kLaserLoc.x(), msg.ranges[i] * sin(theta) + kLaserLoc.y()});
+    }
     i++;
   }
   // +
