@@ -142,6 +142,22 @@ void Navigation::Run() {
   //   visualization::DrawCross(p, 0.01, 0, local_viz_msg_);
   // }
 
+  // Visualize car corners
+  Vector2f p(0.0, 0.0);
+  visualization::DrawCross(p, 0.01, 0, local_viz_msg_); // base_link
+  p.x() = -(car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2 - CAR_MARGIN;
+  p.y() = car_->dimensions_.width_ / 2 + CAR_MARGIN;
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Back-left corner
+  p.x() = -(car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2 - CAR_MARGIN;
+  p.y() = -1 * (car_->dimensions_.width_ / 2 + CAR_MARGIN);
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Back-right corner
+  p.x() = (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2 + CAR_MARGIN;
+  p.y() = car_->dimensions_.width_ / 2 + CAR_MARGIN;
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Front-left corner
+  p.x() = (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2 + CAR_MARGIN;
+  p.y() = -1 * (car_->dimensions_.width_ / 2 + CAR_MARGIN);
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Front-right corner
+
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
@@ -149,7 +165,7 @@ void Navigation::Run() {
   // The latest observed point cloud is accessible via "point_cloud_"
 
   // TODO Used for testing, remove later
-  controllers::time_optimal_1D::ControlCommand command{0.0, -0.45};
+  controllers::time_optimal_1D::ControlCommand command{0.0, 0.45};
   float fpl = controller_->calculateFreePathLength(point_cloud_, command.curvature);
   command.velocity = controller_->calculateControlSpeed(robot_vel_(0), fpl);
   std::cout << fpl << std::endl;
@@ -159,8 +175,9 @@ void Navigation::Run() {
   // controllers::time_optimal_1D::ControlCommand command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
 
   // Eventually, you will have to set the control values to issue drive commands:
-  drive_msg_.curvature = command.curvature;
-  drive_msg_.velocity = command.velocity;
+  // drive_msg_.curvature = command.curvature;
+  // drive_msg_.velocity = command.velocity;
+  drive_msg_.velocity = 0;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
