@@ -29,6 +29,7 @@ float Controller::calculateControlSpeed(const float current_speed, const float f
   if (current_speed < car_->limits_.max_speed_ && free_path_length > 
   ((current_speed * control_interval_) + ((current_speed + car_->limits_.max_acceleration_ * pow(control_interval_, 2)) / 2 ) + (pow(current_speed + car_->limits_.max_acceleration_ * control_interval_, 2) / 2 * car_->limits_.max_acceleration_))) {
     control_speed = current_speed + car_->limits_.max_acceleration_ * control_interval_;  // speed increases by acceleration rate
+    control_speed = car_->limits_.max_speed_;
   }
   // Cruise Case
   // Use kinematic equations to check if we have enough distance to cruise one more time-step
@@ -48,6 +49,7 @@ float Controller::calculateControlSpeed(const float current_speed, const float f
     control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
     if (control_speed < 0)  // prevent reversal
       control_speed = 0;
+    control_speed = 0;
   }
 
   return control_speed;
@@ -145,14 +147,14 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
   float free_path_length {10.0f - (margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2)}; // TODO set this properly
   Vector2f point(0.0, 0.0);
 
-  if (abs(curvature) < 0.01) { // Straight line case
+  if (std::abs(curvature) < 0.01) { // Straight line case
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
 
       // Update minimum free path length for lasers in front of car
       // only consider points in front of the car
-      if (abs(point.y()) < (car_->dimensions_.width_ / 2 + margin_) && point.x() > 0) {
+      if (std::abs(point.y()) < (car_->dimensions_.width_ / 2 + margin_) && point.x() > 0) {
 
         // calculate candidate free path length
         float candidate_free_path_length {point.x() - (margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2)};
@@ -170,8 +172,6 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
     if (curvature < 0) {
       radius *= -1;
     }
-
-    
 
     // calculating values that will be useful so we don't have to calculate them each iteration
     float inside_rear_axle_radius {radius - (margin_ + car_->dimensions_.width_ / 2)};
@@ -232,6 +232,18 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
       //     }
       //   }
       // }
+
+
+    }
+    //TODO
+    //TODO
+    //TODO For assignment 3, goal should be an input to this function. For now, just hard coding it here.
+    //!!!!!!!!
+    //. Limit free path length to closest point of approach
+    Vector2f goal(10.0, 0);
+    float theta = atan(goal.x()/radius);
+    if (radius*theta < free_path_length){
+      free_path_length = radius*theta;
     }
   }
   return free_path_length;
@@ -243,14 +255,14 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
   Vector2f point(0.0, 0.0);
   float min_clearance = max_clearance_; // Note: We begin with a maximum clearance range of 0.5m - any obstacles further than this will not be checked. This should be tuned. 
 
-  if (abs(curvature) < 0.01) { // Straight line case
+  if (std::abs(curvature) < 0.01) { // Straight line case
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
       // If the point lies between the car and the obstacle at the end of the free path, and within the side of the car and the maximum clearance, check clearance. If lower, replace.
       // TODO The second part of this could use a shortening (as described in class on 2/5/24)
-      if ((car_->dimensions_.width_ / 2 + margin_ <= abs(point.y()) && abs(point.y()) <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + car_->dimensions_.wheelbase_))) {
-        float clearance = abs(point.y()) - car_->dimensions_.wheelbase_ / 2 - margin_;
+      if ((car_->dimensions_.width_ / 2 + margin_ <= std::abs(point.y()) && std::abs(point.y()) <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + car_->dimensions_.wheelbase_))) {
+        float clearance = std::abs(point.y()) - car_->dimensions_.wheelbase_ / 2 - margin_;
         if (clearance < min_clearance) {
           min_clearance = clearance;
         }
@@ -277,7 +289,7 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
 
       // First check the points that lie along the free path
       if ((0 <= theta && theta <= phi) && (radius - car_->dimensions_.width_ / 2 - margin_ - max_clearance_ <= point_radius && point_radius <= radius + car_->dimensions_.width_ / 2 + margin_ + max_clearance_)) {
-        float clearance = abs(point_radius * cos(theta) - radius) - car_->dimensions_.width_ / 2 - margin_;
+        float clearance = std::abs(point_radius * cos(theta) - radius) - car_->dimensions_.width_ / 2 - margin_;
         if (clearance < min_clearance) {
           min_clearance = clearance;
         }
@@ -285,8 +297,8 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
 
       // Then, check the points that will be next to the car at its final position
       Vector2f pos = utils::transforms::transformICOM(point.x(), point.y(), phi, radius);
-      if ((car_->dimensions_.width_ / 2 + margin_ <= abs(pos.y()) && abs(pos.y()) <= max_clearance_) && (0 <= pos.x() && (pos.x() <=  car_->dimensions_.wheelbase_) / 2)) {
-        float clearance = abs(pos.y()) - car_->dimensions_.width_ / 2 - margin_;
+      if ((car_->dimensions_.width_ / 2 + margin_ <= std::abs(pos.y()) && std::abs(pos.y()) <= max_clearance_) && (0 <= pos.x() && (pos.x() <=  car_->dimensions_.wheelbase_) / 2)) {
+        float clearance = std::abs(pos.y()) - car_->dimensions_.width_ / 2 - margin_;
         if (clearance < min_clearance){
           min_clearance = clearance;
         }
@@ -296,14 +308,35 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
   return min_clearance;
 }
 
+// TODO
+float Controller::calculateDistanceToGoal(const float curvature)
+{
+  Vector2f goal(10.0, 0.0);
+  Vector2f projected_pos(0.0, 0.0);
+  float goal_distance = 0;
+
+  if (std::abs(curvature) < 0.01) {    // Straight line case
+    projected_pos.x() = car_->limits_.max_speed_ * control_interval_;
+    goal_distance = (goal-projected_pos).norm();
+  }
+  else {  // Moving along an arc
+    float radius {1.0f / curvature};
+    float phi = (car_->limits_.max_speed_ * control_interval_) / radius;
+    projected_pos.x() = radius * sin(phi);
+    projected_pos.y() = radius - (radius * cos(phi));
+    goal_distance = (goal-projected_pos).norm();
+  }
+
+  return goal_distance;
+}
 
 PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud)
 {
   // creating starting path (with terrible score)
-  auto best_path {PathCandidate(-10)};
+  auto best_path {PathCandidate(-100)};
 
   // weights
-  float w1{0.5f}, w2{1.0f};
+  float w1{5.0f}, w2{-0.5f};
 
   // Evaluate all possible paths and select optimal option
   for (float path_curvature = -1 * (car_->limits_.max_curvature_); path_curvature <= car_->limits_.max_curvature_; path_curvature += curvature_sampling_interval_) {
@@ -319,7 +352,7 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
     candidate.clearance = Controller::calculateClearance(point_cloud, candidate.curvature, candidate.free_path_length);
 
     // ? do we include distance to goal now?
-    candidate.goal_distance = Controller::calculateDistanceToGoal();
+    candidate.goal_distance = Controller::calculateDistanceToGoal(candidate.curvature);
 
     // Calculate score and update selection
     candidate.score = candidate.free_path_length + w1 * candidate.clearance + w2 * candidate.goal_distance;
@@ -333,15 +366,12 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
   return best_path;
 }
 
-// TODO
-float Controller::calculateDistanceToGoal(){
-
-  return 0.0; //Placeholder so it builds
-}
-
 Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed)
 {
   PathCandidate path {Controller::evaluatePaths(point_cloud)};
+
+  //std::cout << path.curvature << " " << path.free_path_length << " " << path.clearance << " " << path.goal_distance << " " << path.score << std::endl;
+
   float speed {Controller::calculateControlSpeed(current_speed, path.free_path_length)};
   std::cout << "FPL: " << path.free_path_length << ", " << "Current speed: " << current_speed << ", " << "Commanded speed: " << speed << std::endl;
   return Command(speed, path.curvature);

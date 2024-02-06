@@ -6,10 +6,10 @@
 #define MAX_ACCELERATION                4.0     // m/s^2
 #define MAX_CURVATURE                   1.0     // m^(-1)
 #define CURVATURE_SAMPLING_INTERVAL     0.05    // m
-#define CAR_WIDTH                       0.2 //0.281   // m
-#define CAR_LENGTH                      0.5 //0.535   // m
-#define CAR_WHEELBASE                   0.3 //0.324   // m
-#define CAR_TRACK_WIDTH                 0.2 //0.227   // m
-#define CAR_MARGIN                      0.05    // m
+#define CAR_WIDTH                       0.281   // m
+#define CAR_LENGTH                      0.535   // m
+#define CAR_WHEELBASE                   0.324   // m
+#define CAR_TRACK_WIDTH                 0.227   // m
+#define CAR_MARGIN                      0.1    // m
 
-#define MAX_CLEARANCE                   1.0     // m // & is this necessary?
+#define MAX_CLEARANCE                   0.5     // m // & is this necessary?

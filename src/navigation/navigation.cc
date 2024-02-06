@@ -142,83 +142,56 @@ void Navigation::Run() {
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
 
-  // // Visualize pointcloud
+  // Visualize pointcloud
   // for (int i = 0; i < (int)point_cloud_.size(); i++) {
   //   Vector2f p = point_cloud_[i];
   //   visualization::DrawCross(p, 0.01, 0, local_viz_msg_);
   // }
 
+  // Visualize car corners
+  Vector2f p(0.0, 0.0);
+  visualization::DrawCross(p, 0.01, 0, local_viz_msg_); // base_link
+  p.x() = -(car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2 - CAR_MARGIN;
+  p.y() = car_->dimensions_.width_ / 2 + CAR_MARGIN;
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Back-left corner
+  p.x() = -(car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2 - CAR_MARGIN;
+  p.y() = -1 * (car_->dimensions_.width_ / 2 + CAR_MARGIN);
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Back-right corner
+  p.x() = (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2 + CAR_MARGIN;
+  p.y() = car_->dimensions_.width_ / 2 + CAR_MARGIN;
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Front-left corner
+  p.x() = (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2 + CAR_MARGIN;
+  p.y() = -1 * (car_->dimensions_.width_ / 2 + CAR_MARGIN);
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Front-right corner
+
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
+
+  // TODO Used for testing, remove later
+  // controllers::time_optimal_1D::ControlCommand command{1.0, 0.5};
+  // float fpl = controller_->calculateFreePathLength(point_cloud_, command.curvature);
+  // float cle = controller_->calculateClearance(point_cloud_, command.curvature, fpl);
+  // command.velocity = controller_->calculateControlSpeed(robot_vel_(0), fpl);
+  // std::cout << fpl << std::endl;
+  // std::cout << "  " << cle << std::endl;
+  // std::cout << "    " << command.velocity << std::endl;
+  // float dtg = controller_->calculateDistanceToGoal(command.curvature, command.velocity);
+  // std::cout << "                  " << dtg << std::endl;
 
   // The control iteration goes here.
   // The latest observed point cloud is accessible via "point_cloud_"
 
-  // TODO Used for testing, remove later
-  // controllers::time_optimal_1D::Command command{0.0, -0.35};
-  // // std::cout << point_cloud_.size() << " points" << std::endl;
-  // float fpl = controller_->calculateFreePathLength(point_cloud_, command.curvature);
-  // command.velocity = controller_->calculateControlSpeed(robot_vel_(0), fpl);
-  // std::cout << fpl << std::endl;
-  // std::cout << "  " << command.velocity << std::endl;
-
   // Run the time optimal controller to calculate drive commands
-  // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
-
-
-
-  // // & testing latency
-  // auto cloud {utils::testing::generateTestCloud()};
-  // // controllers::time_optimal_1D::Command command{0.0, -1.0};
-  // float curvature {0.f};
-  // float fpl = controller_->calculateFreePathLength(cloud, curvature);
-  // std::cout << "Regular controller free path length: " << fpl << std::endl;
-
-  // ros::Rate rate(100);
-  // std::cout << "-----------------" << std::endl;
-  // std::cout << point_cloud_.size() << " points are available from timestamp " << last_msg_timestamp_ << std::endl;
-
-  // controllers::time_optimal_1D::Command command_past (0.f, 0.f);
-  // command_past.velocity = 1.0;
-  // latency_controller_->recordCommand(command_past);
-  // rate.sleep();
-  // latency_controller_->recordCommand(command_past);
-  // rate.sleep();
-  // latency_controller_->recordCommand(command_past);
-  // rate.sleep();
-  // latency_controller_->recordCommand(command_past);
-  // rate.sleep();
-  // command_past.curvature = 1.0;
-  // latency_controller_->recordCommand(command_past);
-  // rate.sleep();
-
-  // // latency_controller_->projectState(last_msg_timestamp_);
-  // float latency_fpl = latency_controller_->calculateFreePathLength(cloud, curvature, last_msg_timestamp_);
-
-  // std::cout << "FPL:\n\tWithout Latency:\t" << fpl << "\n\tWith Latency:\t\t" << latency_fpl << std::endl;
-
-  // // latency_controller_->generateCommand(cloud, curvature, last_msg_timestamp_);
-
-  // std::cout << "Collection span: " << (latency_controller_->command_history_.back().timestamp - latency_controller_->command_history_.front().timestamp) << std::endl;
-  // latency_controller_->command_history_.clear();
-  // // & testing latency
-
-
-  // std::cout << "About to update controller..." << std::endl;
-  // std::cout << point_cloud_.size() << ", " << robot_vel_(0) << ", " << last_msg_timestamp_ << std::endl;
-  controllers::time_optimal_1D::Command default_command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
-  controllers::time_optimal_1D::Command command{latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_)};
-  // command = latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_);
-
-  std::cout << "-----\n\tNon-compensated command:\t(" << default_command.velocity << ", " << default_command.curvature << ")\n\tCompensated command:\t\t(" << command.velocity << ", " << command.curvature << ")" << std::endl;
-
-  std::cout << command.velocity << ", " << command.curvature << std::endl;
+  
+  // . regular TOC
+  // controllers::time_optimal_1D::ControlCommand command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  // . with latency compensation
+  controllers::time_optimal_1D::ControlCommand command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0)), last_msg_timestamp_};
 
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
-  // drive_msg_.curvature = 0.f;
-  // drive_msg_.velocity = default_command.velocity;
+  // drive_msg_.velocity = 0;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
