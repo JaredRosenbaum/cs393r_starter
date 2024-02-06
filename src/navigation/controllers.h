@@ -53,7 +53,7 @@ class Controller {
     Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval);
     // TimeOptimalController(float controller_frequency, float max_speed, float max_acceleration, float max_curvature, float max_clearance, float curvature_step, float width, float length, float wheelbase, float track_width, float margin);
 
-    float calculateControlSpeed(const float current_speed, const float distance_left);
+    float calculateControlSpeed(float current_speed, const float distance_left);
 
     float calculateClearance(const std::vector<Vector2f>& point_cloud, const float curvature, const float free_path_length);
 

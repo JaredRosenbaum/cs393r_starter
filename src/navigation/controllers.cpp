@@ -20,12 +20,14 @@ Controller::Controller(vehicles::Car *car, float control_interval, float margin,
 : car_(car), control_interval_(control_interval), margin_(margin), max_clearance_(max_clearance), curvature_sampling_interval_(curvature_sampling_interval) 
 {}
 
-float Controller::calculateControlSpeed(const float current_speed, const float free_path_length)
+float Controller::calculateControlSpeed(float current_speed, const float free_path_length)
 {
   float control_speed {0.0};
   float v_max = car_->limits_.max_speed_; //Maximum velocity of the car
   float a_max = car_->limits_.max_acceleration_; //Maximum acceleration of the car
   float dt = control_interval_; //Control interval
+  
+  current_speed = int(current_speed*5)/5.f;
 
 
   //. Case 1: Accelerate
@@ -33,6 +35,7 @@ float Controller::calculateControlSpeed(const float current_speed, const float f
       (free_path_length >= current_speed*dt + (a_max*dt)*dt/2 + pow((current_speed+a_max*dt),2)/(2*a_max))) {
         control_speed = current_speed + car_->limits_.max_acceleration_ * control_interval_;  // speed increases by acceleration rate
   }  
+  // Note: For now, we are taking a small volume around v_max. Might need to move this to navigation.cc
   else if ((current_speed == v_max) && (free_path_length >= current_speed*dt + v_max*v_max/(2*a_max))) {
         control_speed = current_speed;
   }
@@ -42,6 +45,8 @@ float Controller::calculateControlSpeed(const float current_speed, const float f
   else {
         control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
         std::cout << "I made it into the weird, fourth case!" << std::endl;
+        std::cout << "The free path length is: " << free_path_length << std::endl;
+        std::cout << "The area under the triangle is: " << pow((current_speed),2)/(2*a_max) << std::endl;
   }
 
 if (control_speed < 0) { // prevent reversal
