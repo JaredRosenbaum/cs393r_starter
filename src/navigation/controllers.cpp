@@ -29,6 +29,7 @@ float Controller::calculateControlSpeed(const float current_speed, const float f
   if (current_speed < car_->limits_.max_speed_ && free_path_length > 
   ((current_speed * control_interval_) + ((current_speed + car_->limits_.max_acceleration_ * pow(control_interval_, 2)) / 2 ) + (pow(current_speed + car_->limits_.max_acceleration_ * control_interval_, 2) / 2 * car_->limits_.max_acceleration_))) {
     control_speed = current_speed + car_->limits_.max_acceleration_ * control_interval_;  // speed increases by acceleration rate
+    control_speed = car_->limits_.max_speed_;
   }
   // Cruise Case
   // Use kinematic equations to check if we have enough distance to cruise one more time-step
@@ -48,6 +49,7 @@ float Controller::calculateControlSpeed(const float current_speed, const float f
     control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
     if (control_speed < 0)  // prevent reversal
       control_speed = 0;
+    control_speed = 0;
   }
 
   return control_speed;
@@ -247,7 +249,7 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
   auto best_path {PathCandidate(-100)};
 
   // weights
-  float w1{3.0f}, w2{-0.5f};
+  float w1{5.0f}, w2{-0.5f};
 
   // Evaluate all possible paths and select optimal option
   for (float path_curvature = -1 * (car_->limits_.max_curvature_); path_curvature <= car_->limits_.max_curvature_; path_curvature += curvature_sampling_interval_) {
@@ -281,7 +283,7 @@ ControlCommand Controller::generateCommand(const std::vector<Vector2f>& point_cl
 {
   PathCandidate path {Controller::evaluatePaths(point_cloud)};
 
-  std::cout << path.curvature << " " << path.free_path_length << " " << path.clearance << " " << path.goal_distance << " " << path.score << std::endl;
+  //std::cout << path.curvature << " " << path.free_path_length << " " << path.clearance << " " << path.goal_distance << " " << path.score << std::endl;
 
   float speed {Controller::calculateControlSpeed(current_speed, path.free_path_length)};
   return ControlCommand(speed, path.curvature);
