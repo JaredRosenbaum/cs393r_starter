@@ -84,8 +84,6 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
       radius *= -1;
     }
 
-    
-
     // calculating values that will be useful so we don't have to calculate them each iteration
     float inside_rear_axle_radius {radius - (margin_ + car_->dimensions_.width_ / 2)};
     float inside_front_corner_radius {(float)sqrt(pow(radius - (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
@@ -210,18 +208,34 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
 }
 
 // TODO
-float Controller::calculateDistanceToGoal()
+float Controller::calculateDistanceToGoal(const float curvature)
 {
-  return 0.0; //Placeholder so it builds
+  Vector2f goal(5.0, 0.0);
+  Vector2f projected_pos(0.0, 0.0);
+  float goal_distance = 0;
+
+  if (abs(curvature) < 0.01) {    // Straight line case
+    projected_pos.x() = car_->limits_.max_speed_ * control_interval_;
+    goal_distance = goal.x() - projected_pos.x();
+  }
+  else {  // Moving along an arc
+    float radius {1.0f / curvature};
+    float phi = (car_->limits_.max_speed_ * control_interval_) / radius;
+    projected_pos.x() = radius * sin(phi);
+    projected_pos.y() = radius - (radius * cos(phi));
+    goal_distance = sqrt(pow(goal.x() - projected_pos.x(), 2) + pow(goal.y() - projected_pos.y(), 2));
+  }
+
+  return goal_distance;
 }
 
 PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud)
 {
   // creating starting path (with terrible score)
-  auto best_path {PathCandidate(-10)};
+  auto best_path {PathCandidate(-100)};
 
   // weights
-  float w1{0.5f}, w2{1.0f};
+  float w1{3.0f}, w2{-0.5f};
 
   // Evaluate all possible paths and select optimal option
   for (float path_curvature = -1 * (car_->limits_.max_curvature_); path_curvature <= car_->limits_.max_curvature_; path_curvature += curvature_sampling_interval_) {
@@ -237,10 +251,10 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
     candidate.clearance = Controller::calculateClearance(point_cloud, candidate.curvature, candidate.free_path_length);
 
     // ? do we include distance to goal now?
-    candidate.goal_distance = Controller::calculateDistanceToGoal();
+    candidate.goal_distance = Controller::calculateDistanceToGoal(candidate.curvature);
 
     // Calculate score and update selection
-    candidate.score = candidate.free_path_length + w1 * candidate.clearance + w2 * candidate.goal_distance - abs(0.1 * candidate.curvature);
+    candidate.score = candidate.free_path_length + w1 * candidate.clearance + w2 * candidate.goal_distance;
     
     if (candidate.score > best_path.score) {
       best_path = candidate;
@@ -255,7 +269,7 @@ ControlCommand Controller::generateCommand(const std::vector<Vector2f>& point_cl
 {
   PathCandidate path {Controller::evaluatePaths(point_cloud)};
 
-  std::cout << path.curvature << " " << path.free_path_length << " " << path.clearance << " " << path.score << std::endl;
+  std::cout << path.curvature << " " << path.free_path_length << " " << path.clearance << " " << path.goal_distance << " " << path.score << std::endl;
 
   float speed {Controller::calculateControlSpeed(current_speed, path.free_path_length)};
   return ControlCommand(speed, path.curvature);

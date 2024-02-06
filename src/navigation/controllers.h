@@ -50,7 +50,7 @@ class Controller {
 
     float calculateClearance(const std::vector<Vector2f>& point_cloud, const float curvature, const float free_path_length);
 
-    float calculateDistanceToGoal();
+    float calculateDistanceToGoal(const float curvature);
 
     PathCandidate evaluatePaths(const std::vector<Vector2f>& point_cloud); 
     

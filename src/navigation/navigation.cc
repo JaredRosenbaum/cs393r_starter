@@ -161,17 +161,19 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
-  // The control iteration goes here.
-  // The latest observed point cloud is accessible via "point_cloud_"
-
   // TODO Used for testing, remove later
-  // controllers::time_optimal_1D::ControlCommand command{0.0, -0.5};
+  // controllers::time_optimal_1D::ControlCommand command{1.0, 0.5};
   // float fpl = controller_->calculateFreePathLength(point_cloud_, command.curvature);
   // float cle = controller_->calculateClearance(point_cloud_, command.curvature, fpl);
   // command.velocity = controller_->calculateControlSpeed(robot_vel_(0), fpl);
   // std::cout << fpl << std::endl;
   // std::cout << "  " << cle << std::endl;
   // std::cout << "    " << command.velocity << std::endl;
+  // float dtg = controller_->calculateDistanceToGoal(command.curvature, command.velocity);
+  // std::cout << "                  " << dtg << std::endl;
+
+  // The control iteration goes here.
+  // The latest observed point cloud is accessible via "point_cloud_"
 
   // Run the time optimal controller to calculate drive commands
   controllers::time_optimal_1D::ControlCommand command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
