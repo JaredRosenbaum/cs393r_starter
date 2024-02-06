@@ -143,6 +143,18 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
       //     }
       //   }
       // }
+
+
+    }
+    //TODO
+    //TODO
+    //TODO For assignment 3, goal should be an input to this function. For now, just hard coding it here.
+    //!!!!!!!!
+    //. Limit free path length to closest point of approach
+    Vector2f goal(10.0, 0);
+    float theta = atan(goal.x()/radius);
+    if (radius*theta < free_path_length){
+      free_path_length = radius*theta;
     }
   }
   return free_path_length;
@@ -210,20 +222,20 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
 // TODO
 float Controller::calculateDistanceToGoal(const float curvature)
 {
-  Vector2f goal(5.0, 0.0);
+  Vector2f goal(10.0, 0.0);
   Vector2f projected_pos(0.0, 0.0);
   float goal_distance = 0;
 
   if (abs(curvature) < 0.01) {    // Straight line case
     projected_pos.x() = car_->limits_.max_speed_ * control_interval_;
-    goal_distance = goal.x() - projected_pos.x();
+    goal_distance = (goal-projected_pos).norm();
   }
   else {  // Moving along an arc
     float radius {1.0f / curvature};
     float phi = (car_->limits_.max_speed_ * control_interval_) / radius;
     projected_pos.x() = radius * sin(phi);
     projected_pos.y() = radius - (radius * cos(phi));
-    goal_distance = sqrt(pow(goal.x() - projected_pos.x(), 2) + pow(goal.y() - projected_pos.y(), 2));
+    goal_distance = (goal-projected_pos).norm();
   }
 
   return goal_distance;
