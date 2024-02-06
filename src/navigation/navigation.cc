@@ -98,7 +98,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   // instantiating the controller
   controller_ = new controllers::time_optimal_1D::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL);
 
-  latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, TIME_STEP);
+  latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
   // +
 }
 
@@ -206,15 +206,19 @@ void Navigation::Run() {
 
   // std::cout << "About to update controller..." << std::endl;
   // std::cout << point_cloud_.size() << ", " << robot_vel_(0) << ", " << last_msg_timestamp_ << std::endl;
-  // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  controllers::time_optimal_1D::Command default_command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
   controllers::time_optimal_1D::Command command{latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_)};
   // command = latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_);
+
+  std::cout << "-----\n\tNon-compensated command:\t(" << default_command.velocity << ", " << default_command.curvature << ")\n\tCompensated command:\t\t(" << command.velocity << ", " << command.curvature << ")" << std::endl;
 
   std::cout << command.velocity << ", " << command.curvature << std::endl;
 
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
+  // drive_msg_.curvature = 0.f;
+  // drive_msg_.velocity = default_command.velocity;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();

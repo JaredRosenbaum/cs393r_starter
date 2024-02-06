@@ -424,23 +424,23 @@ State2D Controller::projectState(const float current_speed, const double last_ms
     return state;
   }
 
-  // // search queue and discard commands issued before stamp of this data
-  // while (command_history_.front().timestamp < last_msg_timestamp) {
-  //   std::cout << "Size of history: " << command_history_.size() << std::endl;
-  //   // std::cout << "Removing command with stamp difference " << command_history_.front().timestamp - last_msg_timestamp << " from history." << std::endl;
-  //   command_history_.pop_front();
-  //   std::cout << "Last of history: " << command_history_.size() << std::endl;
-  // }
-
+  double time_threshold {ros::Time::now().toSec()};
   while (!command_history_.empty()) {
-    if ((command_history_.front().timestamp + latency_) >= last_msg_timestamp) {
+    // ! below was compensating for sensing latency, what we really care about is actuation latency
+    // if ((command_history_.front().timestamp + latency_) >= last_msg_timestamp) {
+    //   break;
+    // }
+    // std::cout << "Removing command with stamp difference " << (command_history_.front().timestamp + latency_) - last_msg_timestamp << " from history." << std::endl;
+    // + this should be handling actuation latency
+    if ((time_threshold - command_history_.front().timestamp) < latency_) {
       break;
     }
-    // std::cout << "Removing command with stamp difference " << (command_history_.front().timestamp + latency_) - last_msg_timestamp << " from history." << std::endl;
+    std::cout << "Removing command with diff " << time_threshold - command_history_.front().timestamp << " from command history for latency " << latency_ << std::endl;
     command_history_.pop_front();
   }
 
   // project the future state of the car
+  std::cout << "Considering " << command_history_.size() << " previous commands to compensate for latency..." << std::endl;
   for (const auto &command : command_history_) {
     // std::cout << "Latency: " << latency_ << ", Diff: " << command.timestamp - last_msg_timestamp << std::endl;
     double distance_traveled {command.command.velocity * toc_->getControlInterval()};

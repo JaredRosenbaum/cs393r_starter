@@ -1,5 +1,6 @@
 #pragma once
 
+#define LATENCY                         0.15 // s
 #define TIME_STEP                       0.05    // s
 #define MAX_SPEED                       1.0     // m/s
 #define MAX_ACCELERATION                4.0     // m/s^2
