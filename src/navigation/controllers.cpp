@@ -27,8 +27,10 @@ float Controller::calculateControlSpeed(float current_speed, const float free_pa
   float a_max = car_->limits_.max_acceleration_; //Maximum acceleration of the car
   float dt = control_interval_; //Control interval
   
-  current_speed = int(current_speed*5)/5.f;
-
+//  current_speed = int(current_speed*5)/5.f;
+  if (current_speed >= v_max-0.05 && current_speed <= v_max+0.05){
+	current_speed = v_max;
+  }
 
   //. Case 1: Accelerate
   if ((current_speed < car_->limits_.max_speed_) && 
@@ -53,7 +55,7 @@ if (control_speed < 0) { // prevent reversal
   control_speed = 0;
 }
 if (control_speed > v_max) {
-  control_speed = 1;
+  control_speed = v_max;
 }
   // Accelerate Case
   // Use kinematic equations to check if we have enough distance to accelerate one more time-step
@@ -270,11 +272,11 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
     //TODO For assignment 3, goal should be an input to this function. For now, just hard coding it here.
     //!!!!!!!!
     //. Limit free path length to closest point of approach
-    Vector2f goal(10.0, 0);
-    float theta = atan(goal.x()/radius);
-    if (radius*theta < free_path_length){
-      free_path_length = radius*theta;
-    }
+//    Vector2f goal(10.0, 0);
+//    float theta = atan(goal.x()/radius);
+//    if (radius*theta < free_path_length){
+//      free_path_length = radius*theta;
+//    }
   }
   return free_path_length;
   // return std::max(free_path_length, 0.0f);
@@ -366,7 +368,7 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
   auto best_path {PathCandidate(-100)};
 
   // weights
-  float w1{5.0f}, w2{-0.5f};
+  float w1{8.f}, w2{-0.5f};
 
   // Evaluate all possible paths and select optimal option
   for (float path_curvature = -1 * (car_->limits_.max_curvature_); path_curvature <= car_->limits_.max_curvature_; path_curvature += curvature_sampling_interval_) {
@@ -495,12 +497,12 @@ State2D Controller::projectState(const float current_speed, const double last_ms
     if ((time_threshold - command_history_.front().timestamp) < latency_) {
       break;
     }
-    std::cout << "Removing command with diff " << time_threshold - command_history_.front().timestamp << " from command history for latency " << latency_ << std::endl;
+//    std::cout << "Removing command with diff " << time_threshold - command_history_.front().timestamp << " from command history for latency " << latency_ << std::endl;
     command_history_.pop_front();
   }
 
   // project the future state of the car
-  std::cout << "Considering " << command_history_.size() << " previous commands to compensate for latency..." << std::endl;
+//  std::cout << "Considering " << command_history_.size() << " previous commands to compensate for latency..." << std::endl;
   for (const auto &command : command_history_) {
     // std::cout << "Latency: " << latency_ << ", Diff: " << command.timestamp - last_msg_timestamp << std::endl;
     double distance_traveled {command.command.velocity * toc_->getControlInterval()};

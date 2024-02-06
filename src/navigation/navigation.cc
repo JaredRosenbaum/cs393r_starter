@@ -184,7 +184,7 @@ void Navigation::Run() {
   // Run the time optimal controller to calculate drive commands
   
   // . regular TOC
-  // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+//  controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
   // . with latency compensation
   controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_)};
 
