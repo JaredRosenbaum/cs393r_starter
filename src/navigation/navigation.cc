@@ -77,9 +77,6 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
     nav_complete_(true),
     nav_goal_loc_(0, 0),
     nav_goal_angle_(0)
-    // car_ (vehicles::UT_Automata()),
-    // controller_ (controllers::time_optimal_1D::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL)),
-    // latency_controller_ (controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, TIME_STEP)),
     {
   map_.Load(GetMapFileFromName(map_name));
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
@@ -167,31 +164,17 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
-  // TODO Used for testing, remove later
-  // controllers::time_optimal_1D::ControlCommand command{1.0, 0.5};
-  // float fpl = controller_->calculateFreePathLength(point_cloud_, command.curvature);
-  // float cle = controller_->calculateClearance(point_cloud_, command.curvature, fpl);
-  // command.velocity = controller_->calculateControlSpeed(robot_vel_(0), fpl);
-  // std::cout << fpl << std::endl;
-  // std::cout << "  " << cle << std::endl;
-  // std::cout << "    " << command.velocity << std::endl;
-  // float dtg = controller_->calculateDistanceToGoal(command.curvature, command.velocity);
-  // std::cout << "                  " << dtg << std::endl;
-
   // The control iteration goes here.
   // The latest observed point cloud is accessible via "point_cloud_"
 
-  // Run the time optimal controller to calculate drive commands
-  
   // . regular TOC
-//  controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
   // . with latency compensation
   controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_)};
 
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
-  // drive_msg_.velocity = 0;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();

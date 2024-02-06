@@ -23,39 +23,38 @@ Controller::Controller(vehicles::Car *car, float control_interval, float margin,
 float Controller::calculateControlSpeed(float current_speed, const float free_path_length)
 {
   float control_speed {0.0};
-  float v_max = car_->limits_.max_speed_; //Maximum velocity of the car
-  float a_max = car_->limits_.max_acceleration_; //Maximum acceleration of the car
-  float dt = control_interval_; //Control interval
   
 //  current_speed = int(current_speed*5)/5.f;
-  if (current_speed >= v_max-0.05 && current_speed <= v_max+0.05){
-	current_speed = v_max;
+  if ((current_speed >= car_->limits_.max_speed_ - 0.05) && (current_speed <= car_->limits_.max_speed_ + 0.05)){
+	current_speed = car_->limits_.max_speed_;
   }
 
-  //. Case 1: Accelerate
+  // Case 1: Accelerate
   if ((current_speed < car_->limits_.max_speed_) && 
-      (free_path_length >= current_speed*dt + (a_max*dt)*dt/2 + pow((current_speed+a_max*dt),2)/(2*a_max))) {
+      (free_path_length >= current_speed * control_interval_ + (car_->limits_.max_acceleration_ * control_interval_) * control_interval_ / 2 + pow((current_speed + car_->limits_.max_acceleration_ * control_interval_), 2) / (2 * car_->limits_.max_acceleration_))) {
         control_speed = current_speed + car_->limits_.max_acceleration_ * control_interval_;  // speed increases by acceleration rate
-  }  
-  // Note: For now, we are taking a small volume around v_max. Might need to move this to navigation.cc
-  else if ((current_speed == v_max) && (free_path_length >= current_speed*dt + v_max*v_max/(2*a_max))) {
+  }
+  // Case 2: Cruise
+  // Note: For now, we are taking a small volume around car_->limits_.max_speed_. Might need to move this to navigation.cc
+  else if ((current_speed == car_->limits_.max_speed_) && (free_path_length >= current_speed * control_interval_ + car_->limits_.max_speed_ * car_->limits_.max_speed_ / (2 * car_->limits_.max_acceleration_))) {
         control_speed = current_speed;
   }
-  else if (free_path_length < pow((current_speed),2)/(2*a_max)){
+  // Case 3: Decelerate
+  else if (free_path_length < pow((current_speed), 2) / (2 * car_->limits_.max_acceleration_)) {
         control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
   }
+  // Case 4: Declerate with expected collision warning
   else {
         control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
-        std::cout << "I made it into the weird, fourth case!" << std::endl;
+        std::cout << "Not enough room to decelerate! Expecting collision..." << std::endl;
         std::cout << "The free path length is: " << free_path_length << std::endl;
-        std::cout << "The area under the triangle is: " << pow((current_speed),2)/(2*a_max) << std::endl;
   }
 
 if (control_speed < 0) { // prevent reversal
   control_speed = 0;
 }
-if (control_speed > v_max) {
-  control_speed = v_max;
+if (control_speed > car_->limits_.max_speed_) {
+  control_speed = car_->limits_.max_speed_;
 }
     return control_speed;
 }
@@ -63,6 +62,7 @@ if (control_speed > v_max) {
 float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_cloud, float curvature)
 {
   float free_path_length {10.0f - (margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2)}; // TODO set this properly
+  float candidate_free_path_length {0.f};
   Vector2f point(0.0, 0.0);
 
   if (std::abs(curvature) < 0.01) { // Straight line case
@@ -96,7 +96,7 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
     float inside_front_corner_radius {(float)sqrt(pow(radius - (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
     float outside_front_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
     float outside_rear_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2, 2))};
-    // float outside_rear_axle_radius {radius + (margin_ + car_->dimensions_.width_ / 2)};
+    float outside_rear_axle_radius {radius + (margin_ + car_->dimensions_.width_ / 2)};
 
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
@@ -107,7 +107,7 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
       }
 
       // Check which one of the toruses the point lies within, if any
-      float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2)); // - note: no x-component because this is expressed in the car's base link
+      float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2));
       float theta = atan2(point.x(), (radius - point.y()));
 
       // if point radius is < minimum radius of any point on car, it will never be an obstacle
@@ -138,23 +138,21 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
         }
       }
 
-      // TODO Not needed for the assignment.
       // Condition three: The point hits the outer rear side of the car
       // if radius is greater than outside rear axle radius and less than the radius of the outside rear corner
-      // if ((outside_rear_axle_radius <= point_radius) && (point_radius < outside_rear_corner_radius)) {
-      //   if ((std::abs(point.x()) < margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2) && (margin_ + (car_->dimensions_.width_ / 2) < std::abs(point.y()))) {
-      //     float psi = -1 * acos(outside_rear_axle_radius / point_radius);
-      //     float phi = theta - psi;
-      //     if (radius * phi < free_path_length) {
-      //       free_path_length = radius * phi;
-      //     }
-      //   }
-      // }
-
+      if ((outside_rear_axle_radius <= point_radius) && (point_radius < outside_rear_corner_radius)) {
+        if ((std::abs(point.x()) < margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2) && (margin_ + (car_->dimensions_.width_ / 2) < std::abs(point.y()))) {
+          float psi = -1 * acos(outside_rear_axle_radius / point_radius);
+          float phi = theta - psi;
+          if (radius * phi < free_path_length) {
+            candidate_free_path_length = radius * phi;
+            if (candidate_free_path_length) {}
+          }
+        }
+      }
 
     }
-    //TODO
-    //. Limit free path length to closest point of approach
+    //TODO Limit free path length to closest point of approach
 //    Vector2f goal(10.0, 0);
 //    float theta = atan(goal.x()/radius);
 //    if (radius*theta < free_path_length){
@@ -162,7 +160,6 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
 //    }
   }
   return free_path_length;
-  // return std::max(free_path_length, 0.0f);
 }
 
 float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, const float curvature, const float free_path_length)
@@ -221,7 +218,6 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
   return min_clearance;
 }
 
-// TODO
 float Controller::calculateDistanceToGoal(const float curvature)
 {
   Vector2f goal(10.0, 0.0);
@@ -263,7 +259,7 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
     // calculate clearance
     candidate.clearance = Controller::calculateClearance(point_cloud, candidate.curvature, candidate.free_path_length);
 
-    // ? do we include distance to goal now?
+    // goal distance metric
     candidate.goal_distance = Controller::calculateDistanceToGoal(candidate.curvature);
 
     // Calculate score and update selection
@@ -281,7 +277,7 @@ Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, co
 {
   PathCandidate path {Controller::evaluatePaths(point_cloud)};
   float speed {Controller::calculateControlSpeed(current_speed, path.free_path_length)};
-  std::cout << "FPL: " << path.free_path_length << ", " << "Current speed: " << current_speed << ", " << "Commanded speed: " << speed << std::endl;
+  // std::cout << "FPL: " << path.free_path_length << ", " << "Current speed: " << current_speed << ", " << "Commanded speed: " << speed << std::endl;
   return Command(speed, path.curvature);
 }
 
@@ -364,12 +360,6 @@ State2D Controller::projectState(const float current_speed, const double last_ms
 
   double time_threshold {ros::Time::now().toSec()};
   while (!command_history_.empty()) {
-    // ! below was compensating for sensing latency, what we really care about is actuation latency
-    // if ((command_history_.front().timestamp + latency_) >= last_msg_timestamp) {
-    //   break;
-    // }
-    // std::cout << "Removing command with stamp difference " << (command_history_.front().timestamp + latency_) - last_msg_timestamp << " from history." << std::endl;
-    // + this should be handling actuation latency
     if ((time_threshold - command_history_.front().timestamp) < latency_) {
       break;
     }

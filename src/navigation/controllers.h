@@ -51,7 +51,6 @@ struct Command {
 class Controller {
   public:
     Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval);
-    // TimeOptimalController(float controller_frequency, float max_speed, float max_acceleration, float max_curvature, float max_clearance, float curvature_step, float width, float length, float wheelbase, float track_width, float margin);
 
     float calculateControlSpeed(float current_speed, const float distance_left);
 
@@ -60,8 +59,6 @@ class Controller {
     float calculateDistanceToGoal(const float curvature);
 
     PathCandidate evaluatePaths(const std::vector<Vector2f>& point_cloud); 
-    
-    // void selectPath(const std::vector<Vector2f>& point_cloud); 
 
     float calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature);
 
@@ -73,7 +70,7 @@ class Controller {
     vehicles::Car *car_;
     float control_interval_;    // Time step period
     float margin_;              // Margin of error around car
-    float max_clearance_;       // TODO
+    float max_clearance_;       // Max clearance value assigned to paths without observed obstacles
     float curvature_sampling_interval_; // Dicretization of curvature paths
 };
 
@@ -85,7 +82,6 @@ namespace latency_compensation {
 // For storing command history within the latency compensator
 struct CommandStamped {
   time_optimal_1D::Command command;
-  // std::chrono::milliseconds timestamp;
   double timestamp;
   CommandStamped (time_optimal_1D::Command com) : command(com) {
     timestamp = ros::Time::now().toSec();
@@ -118,8 +114,6 @@ class Controller {
     float latency_;
     std::deque<CommandStamped> command_history_;
     time_optimal_1D::Controller *toc_;
-
-    // double last_msg_timestamp_;
 
 }; // class LatencyController
 
