@@ -1,5 +1,6 @@
 #pragma once
 
+#define LATENCY                         0.15 // s
 #define TIME_STEP                       0.05    // s
 #define MAX_SPEED                       1.0     // m/s
 #define MAX_ACCELERATION                4.0     // m/s^2
@@ -9,6 +10,6 @@
 #define CAR_LENGTH                      0.535   // m
 #define CAR_WHEELBASE                   0.324   // m
 #define CAR_TRACK_WIDTH                 0.227   // m
-#define CAR_MARGIN                      0.05    // m
+#define CAR_MARGIN                      0.1    // m
 
 #define MAX_CLEARANCE                   0.5     // m // & is this necessary?

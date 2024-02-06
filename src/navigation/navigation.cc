@@ -76,7 +76,11 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
     robot_omega_(0),
     nav_complete_(true),
     nav_goal_loc_(0, 0),
-    nav_goal_angle_(0) {
+    nav_goal_angle_(0)
+    // car_ (vehicles::UT_Automata()),
+    // controller_ (controllers::time_optimal_1D::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL)),
+    // latency_controller_ (controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, TIME_STEP)),
+    {
   map_.Load(GetMapFileFromName(map_name));
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
@@ -92,8 +96,9 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   car_ = new vehicles::UT_Automata(); // - note this inherits from vehicles::Car and uses the parameters defined in parameters.h
 
   // instantiating the controller
-  // controller_ = new LatencyController();
   controller_ = new controllers::time_optimal_1D::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL);
+
+  latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
   // +
 }
 
@@ -126,7 +131,8 @@ void Navigation::UpdateOdometry(const Vector2f& loc,
 
 void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
                                    double time) {
-  point_cloud_ = cloud;                                     
+  point_cloud_ = cloud;   
+  last_msg_timestamp_ = time;                       
 }
 
 void Navigation::Run() {
@@ -161,20 +167,26 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
-  // The control iteration goes here.
-  // The latest observed point cloud is accessible via "point_cloud_"
-
   // TODO Used for testing, remove later
-  // controllers::time_optimal_1D::ControlCommand command{0.0, -0.5};
+  // controllers::time_optimal_1D::ControlCommand command{1.0, 0.5};
   // float fpl = controller_->calculateFreePathLength(point_cloud_, command.curvature);
   // float cle = controller_->calculateClearance(point_cloud_, command.curvature, fpl);
   // command.velocity = controller_->calculateControlSpeed(robot_vel_(0), fpl);
   // std::cout << fpl << std::endl;
   // std::cout << "  " << cle << std::endl;
   // std::cout << "    " << command.velocity << std::endl;
+  // float dtg = controller_->calculateDistanceToGoal(command.curvature, command.velocity);
+  // std::cout << "                  " << dtg << std::endl;
+
+  // The control iteration goes here.
+  // The latest observed point cloud is accessible via "point_cloud_"
 
   // Run the time optimal controller to calculate drive commands
-  controllers::time_optimal_1D::ControlCommand command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  
+  // . regular TOC
+  // controllers::time_optimal_1D::ControlCommand command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  // . with latency compensation
+  controllers::time_optimal_1D::ControlCommand command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0)), last_msg_timestamp_};
 
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
@@ -190,6 +202,8 @@ void Navigation::Run() {
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
+
+  // std::cout << "End of loop" << std::endl;
 }
 
 }  // namespace navigation

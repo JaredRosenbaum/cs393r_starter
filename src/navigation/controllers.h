@@ -11,9 +11,10 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
-#include <queue>
+#include <deque>
 #include <chrono>
 #include "eigen3/Eigen/Dense"
+#include "ros/ros.h"
 
 #include "vehicles.hpp"
 #include "functions.h"
@@ -33,13 +34,19 @@ struct PathCandidate {
   PathCandidate(float c, float fpl) : curvature(c), free_path_length(fpl) {};
 }; // struct PathCandidate
 
+struct State2D {
+  Eigen::Vector2f position;
+  double theta;
+  float speed;
+}; // struct State2D
+
 namespace time_optimal_1D {
 
-struct ControlCommand {
+struct Command {
   float velocity;
   float curvature;
-  ControlCommand(float v, float c) : velocity(v), curvature(c) {}
-}; // struct ControlCommand
+  Command(float v, float c) : velocity(v), curvature(c) {}
+}; // struct Command
 
 class Controller {
   public:
@@ -50,15 +57,17 @@ class Controller {
 
     float calculateClearance(const std::vector<Vector2f>& point_cloud, const float curvature, const float free_path_length);
 
-    float calculateDistanceToGoal();
+    float calculateDistanceToGoal(const float curvature);
 
     PathCandidate evaluatePaths(const std::vector<Vector2f>& point_cloud); 
     
     // void selectPath(const std::vector<Vector2f>& point_cloud); 
 
-    float calculateFreePathLength(const std::vector<Vector2f>& point_cloud, float curvature);
+    float calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature);
 
-    ControlCommand generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed);
+    Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed);
+
+    float getControlInterval();
 
   private:
     vehicles::Car *car_;
@@ -74,27 +83,43 @@ class Controller {
 namespace latency_compensation {
 
 // For storing command history within the latency compensator
-struct LatentCommand {
-  time_optimal_1D::ControlCommand command;
-  std::chrono::milliseconds timestamp;
-  LatentCommand (float v, float c) : command(v, c) {
-    timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+struct CommandStamped {
+  time_optimal_1D::Command command;
+  // std::chrono::milliseconds timestamp;
+  double timestamp;
+  CommandStamped (time_optimal_1D::Command com) : command(com) {
+    timestamp = ros::Time::now().toSec();
   }
-}; // struct LatentCommand
+}; // struct CommandStamped
 
 class Controller {
 
   public:
     Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval, float latency);
     ~Controller();
-    void recordCommand(const LatentCommand command);
-    void recordCommand(const float v, const float c);
 
+    time_optimal_1D::Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp);
+
+    void recordCommand(const time_optimal_1D::Command command);
   private:
     vehicles::Car *car_;
+
+    State2D projectState(const float current_speed, const double last_msg_timestamp);
+
+    std::vector<Eigen::Vector2f> transformCloud (std::vector<Eigen::Vector2f> cloud, const State2D &state);
+
+    void recordCommand(const CommandStamped command);
+
+    void printState(const State2D &state);
+
+    float calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature, const double last_data_timestamp);
+
+
     float latency_;
+    std::deque<CommandStamped> command_history_;
     time_optimal_1D::Controller *toc_;
-    std::queue<LatentCommand> command_history_;
+
+    // double last_msg_timestamp_;
 
 }; // class LatencyController
 

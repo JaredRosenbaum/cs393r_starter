@@ -26,4 +26,61 @@ Eigen::Vector2f projectPoint(Eigen::Vector2f point, float theta, float radius)
 
 } // namespace transforms
 
+namespace testing {
+
+std::vector<Eigen::Vector2f> generateTestCloud()
+{
+    std::vector<Eigen::Vector2f> points;
+
+    Eigen::Vector2f point;
+
+    point.x() = 1.f;
+    point.y() = 0.f;
+    points.push_back(point);
+
+    point.y() = 1.f;
+    points.push_back(point);
+
+    point.y() = -1.f;
+    points.push_back(point);
+
+    point.x() = 0.f;
+    point.y() = 0.75f;
+    points.push_back(point);
+
+    point.y() = -0.75f;
+    points.push_back(point);
+
+    point.x() = -0.01f;
+    point.y() = 0.152f;
+    points.push_back(point);
+
+    point.y() = -0.152f;
+    points.push_back(point);
+
+    point.x() = -0.02f;
+    point.y() = 0.05;
+    points.push_back(point);
+
+    point.y() = 0.152f;
+    points.push_back(point);
+
+    point.x() = 0.05;
+    points.push_back(point);
+
+    point.x() = -0.02f;
+    point.y() = -0.05;
+    points.push_back(point);
+
+    point.y() = -0.152f;
+    points.push_back(point);
+
+    point.x() = 0.05;
+    points.push_back(point);
+
+    return points;
+}
+
+} // namespace testing
+
 } // namespace utils
