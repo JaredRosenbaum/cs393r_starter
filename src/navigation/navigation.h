@@ -57,6 +57,7 @@ class Navigation {
   ~Navigation() {
     delete car_;
     delete controller_;
+    delete latency_controller_;
   }
   // +
 
@@ -117,6 +118,8 @@ class Navigation {
   vehicles::UT_Automata *car_;
   // Controller object
   controllers::time_optimal_1D::Controller *controller_;
+  double last_msg_timestamp_;
+  controllers::latency_compensation::Controller *latency_controller_;
   // +
 };
 

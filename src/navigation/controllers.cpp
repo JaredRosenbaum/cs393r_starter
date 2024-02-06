@@ -17,7 +17,7 @@ namespace controllers {
 namespace time_optimal_1D {
 
 Controller::Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval) 
-: car_(car), control_interval_(control_interval), max_clearance_(max_clearance), curvature_sampling_interval_(curvature_sampling_interval) 
+: car_(car), control_interval_(control_interval), margin_(margin), max_clearance_(max_clearance), curvature_sampling_interval_(curvature_sampling_interval) 
 {}
 
 float Controller::calculateControlSpeed(const float current_speed, const float free_path_length)
@@ -53,6 +53,93 @@ float Controller::calculateControlSpeed(const float current_speed, const float f
   return control_speed;
 }
 
+// float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature)
+// {
+//   // line case
+//   if (abs(curvature) < 0.01) {
+//     // TODO handle straight case
+//     return 0.0f;
+//   }
+
+//   // arc case
+
+//   // create vector for turning radius
+//   float turning_radius_magnitude {1.0f / curvature};
+//   Eigen::Vector2f turning_radius {0.0f, turning_radius_magnitude};
+
+//   // calculate other useful vectors
+//   Eigen::Vector2f inside_rear_axle {0.0f, margin_ + car_->dimensions_.width_ / 2};
+//   Eigen::Vector2f inside_front_corner {margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, margin_ + car_->dimensions_.width_ / 2};
+//   Eigen::Vector2f outside_front_corner {inside_front_corner.x(), -1 * inside_front_corner.y()};
+//   Eigen::Vector2f outside_rear_corner {margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2, margin_ + car_->dimensions_.width_ / 2};
+//   Eigen::Vector2f outside_rear_axle {0.0f, -1 * inside_rear_axle.y()};
+
+//   // flipping signs on y-components (because inside/outside is relative to the direction you're turning)
+//   if (curvature < 0) {
+//     inside_rear_axle.y() = -1 * inside_rear_axle.y();
+//     inside_front_corner.y() = -1 * inside_front_corner.y();
+//     outside_front_corner.y() = -1 * outside_front_corner.y();
+//     outside_rear_corner.y() = -1 * outside_rear_corner.y();
+//     outside_rear_axle.y() = -1 * outside_rear_axle.y();
+//   }
+
+//   // sqrd magntiude calculations (so they don't need to be repeated)
+//   double inside_rear_axle_sqrd {pow(inside_rear_axle.x(), 2) + pow(inside_rear_axle.y(), 2)}; 
+//   double inside_front_corner_sqrd {pow(inside_front_corner.x(), 2) + pow(inside_front_corner.y(), 2)};
+//   double outside_front_corner_sqrd {pow(outside_front_corner.x(), 2) + pow(outside_front_corner.y(), 2)};
+//   double outside_rear_corner_sqrd {pow(outside_rear_corner.x(), 2) + pow(outside_rear_corner.y(), 2)};
+//   double outside_rear_axle_sqrd {pow(outside_rear_axle.x(), 2) + pow(outside_rear_axle.y(), 2)};
+
+//   // loop over points
+//   for (int i = 0; i < (int)point_cloud.size(); i++) {
+
+//     // . calculating vector and magnitude
+//     Eigen::Vector2f point {point_cloud[i]};
+//     double point_sqrd {pow(point.x(), 2) + pow(point.y(), 2)};
+//     // double point_magnitude {sqrt(point_sqrd)};
+
+//     // . calculating angle between point and radius vectors
+//     double theta {atan2(point.y() - turning_radius.y(), point.x() - turning_radius.x())};
+
+//     std::cout << "\tPoint: (" << point.x() << ", " << point.y() << "), theta: " << theta << std::endl;
+
+//     // . broad-face checks
+//     // radius too small to ever be an obstacle
+//     if (point_sqrd < inside_rear_axle_sqrd) {
+//       std::cout << "\t\tToo small!" << std::endl;
+//       continue;
+//     }
+//     // radius too large to ever be an obstacle
+//     if (std::max(outside_front_corner_sqrd, outside_rear_corner_sqrd) < point_sqrd) {
+//       std::cout << "\t\tToo large!" << std::endl;
+//       continue;
+//     }
+
+//     // . narrow-face checks
+//     // point hits inside of car
+//     if ((inside_rear_axle_sqrd < point_sqrd) && (point_sqrd < inside_front_corner_sqrd)) {
+//       // TODO
+//       std::cout << "\t\tSide obstacle!" << std::endl;
+//       // double psi {atan2(inside_rear_axle.y() - turning_radius.y(), inside_rear_axle.x() - turning_radius.x())};
+//     }
+
+//     // point hits front of car
+//     if ((inside_front_corner_sqrd <= point_sqrd) && (point_sqrd <= outside_front_corner_sqrd)) {
+//       // TODO
+//       // ? how can I get the orientation of the vector for the front collision? I know it's length, but don't know its orientation -> if I get this, I can compute the atan(x_diff, y_diff) to get the angle I care about
+//       std::cout << "\t\tFront obstacle!" << std::endl;
+//       // double psi {asin((margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2) / point_magnitude)};
+//     }
+
+//     // point hits rear back corner of car
+//     if ((outside_rear_axle_sqrd < point_sqrd) && (point_sqrd < outside_rear_corner_sqrd)) {
+//       // TODO
+//       std::cout << "\t\tRear obstacle!" << std::endl;
+//     }
+//   }
+//   return 0.0f;
+// }
+
 float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_cloud, float curvature)
 {
   float free_path_length {10.0f - (margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2)}; // TODO set this properly
@@ -79,16 +166,27 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
   } else { // Moving along an arc
     float radius {1.0f / curvature};
 
+    // Handle right turns by symmetry
+    if (curvature < 0) {
+      radius *= -1;
+    }
+
+    
+
     // calculating values that will be useful so we don't have to calculate them each iteration
     float inside_rear_axle_radius {radius - (margin_ + car_->dimensions_.width_ / 2)};
     float inside_front_corner_radius {(float)sqrt(pow(radius - (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
     float outside_front_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, 2))};
-    // float outside_rear_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2, 2))};
+    float outside_rear_corner_radius {(float)sqrt(pow(radius + (margin_ + car_->dimensions_.width_ / 2), 2) + pow(margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2, 2))};
     // float outside_rear_axle_radius {radius + (margin_ + car_->dimensions_.width_ / 2)};
 
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
+      // Handle right turns by symmetry
+      if (curvature < 0) {
+          point.y() *= -1;
+      }
 
       // Check which one of the toruses the point lies within, if any
       float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2)); // - note: no x-component because this is expressed in the car's base link
@@ -96,16 +194,16 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
 
       // if point radius is < minimum radius of any point on car, it will never be an obstacle
       if (point_radius < inside_rear_axle_radius) {continue;}
-      
-      // TODO This statement breaks obstacle detection on right turns... Remove for now
+
       // likewise, if point radius is > than the maximum radius of any point on the car, it will never be an obstacle
-      // if (point_radius > std::max(outside_front_corner_radius, outside_rear_corner_radius)) {continue;}
+      if (point_radius > std::max(outside_front_corner_radius, outside_rear_corner_radius)) {continue;}
 
       // Condition one: The point hits the inner side of the car
       // if radius is also less than the radius of the front inside corner
       if (((theta > 0)) && (point_radius >= inside_rear_axle_radius) && (point_radius < inside_front_corner_radius)) {
         float psi = acos(inside_rear_axle_radius / point_radius);
         float phi = theta - psi;
+        // std::cout << "      A" << std::endl;
         if (radius * phi < free_path_length) {
           free_path_length = radius * phi;
         }
@@ -116,24 +214,28 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
       else if ((theta > 0) && (inside_front_corner_radius <= point_radius) && (point_radius < outside_front_corner_radius)) {
         float psi = asin((margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2) / point_radius);
         float phi = theta - psi;
+        // std::cout << "      B" << std::endl;
         if (radius * phi < free_path_length) {
           free_path_length = radius * phi;
         }
       }
-      
-      // TODO Figure out outside hit scenario
+
+      // TODO Not needed for the assignment.
       // Condition three: The point hits the outer rear side of the car
       // if radius is greater than outside rear axle radius and less than the radius of the outside rear corner
       // if ((outside_rear_axle_radius <= point_radius) && (point_radius < outside_rear_corner_radius)) {
-      //   float psi = acos(outside_rear_axle_radius / point_radius);
-      //   float phi = theta - psi;
-      //   if (radius * phi < free_path_length) {
-      //     free_path_length = radius * phi;
+      //   if ((std::abs(point.x()) < margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2) && (margin_ + (car_->dimensions_.width_ / 2) < std::abs(point.y()))) {
+      //     float psi = -1 * acos(outside_rear_axle_radius / point_radius);
+      //     float phi = theta - psi;
+      //     if (radius * phi < free_path_length) {
+      //       free_path_length = radius * phi;
+      //     }
       //   }
       // }
     }
   }
-  return std::max(free_path_length, 0.0f);
+  return free_path_length;
+  // return std::max(free_path_length, 0.0f);
 }
 
 float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, const float curvature, const float free_path_length)
@@ -145,38 +247,46 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
-
       // If the point lies between the car and the obstacle at the end of the free path, and within the side of the car and the maximum clearance, check clearance. If lower, replace.
-      if ((car_->dimensions_.width_ / 2 <= point.y() && point.y() <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2))) {
-        float clearance = abs(point.y()) - car_->dimensions_.wheelbase_ / 2;
+      // TODO The second part of this could use a shortening (as described in class on 2/5/24)
+      if ((car_->dimensions_.width_ / 2 + margin_ <= abs(point.y()) && abs(point.y()) <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + car_->dimensions_.wheelbase_))) {
+        float clearance = abs(point.y()) - car_->dimensions_.wheelbase_ / 2 - margin_;
         if (clearance < min_clearance) {
           min_clearance = clearance;
         }
       }
     }
   } else { // Moving along an arc
+    
     float radius {1.0f / curvature};
+    // Handle right turn
+    if (curvature < 0) {
+      radius *= -1;
+    }
 
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
+      if (curvature < 0) {
+          point.y() *= -1;
+      }
+
       float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2));
       float theta = atan2(point.x(), (radius - point.y()));
       float phi = free_path_length / radius;
 
       // First check the points that lie along the free path
-      if ((0 <= theta && theta <= phi) && (radius - car_->dimensions_.width_ / 2 - max_clearance_ <= point_radius && point_radius <= radius + car_->dimensions_.width_ / 2 + max_clearance_)) {
-        float clearance = abs(point_radius - radius) - car_->dimensions_.width_ / 2;
+      if ((0 <= theta && theta <= phi) && (radius - car_->dimensions_.width_ / 2 - margin_ - max_clearance_ <= point_radius && point_radius <= radius + car_->dimensions_.width_ / 2 + margin_ + max_clearance_)) {
+        float clearance = abs(point_radius * cos(theta) - radius) - car_->dimensions_.width_ / 2 - margin_;
         if (clearance < min_clearance) {
           min_clearance = clearance;
         }
       }
 
-      // Next, check the points that will be next to the car at the end of the free path
-      // TODO: Make sure this hasty implementation actually works
-      if ((radius * sin(phi) <= point.x() && point.x() <= radius * sin(phi) + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2 * cos(phi)) && (radius * cos(phi) <= point.y() && point.y() <= radius * cos(phi) + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2 * sin(phi))) {
-        Vector2f pos = utils::transforms::transformICOM(point.x(), point.y(), phi, radius);
-        float clearance = abs(pos(1)) - car_->dimensions_.width_ / 2;
+      // Then, check the points that will be next to the car at its final position
+      Vector2f pos = utils::transforms::transformICOM(point.x(), point.y(), phi, radius);
+      if ((car_->dimensions_.width_ / 2 + margin_ <= abs(pos.y()) && abs(pos.y()) <= max_clearance_) && (0 <= pos.x() && (pos.x() <=  car_->dimensions_.wheelbase_) / 2)) {
+        float clearance = abs(pos.y()) - car_->dimensions_.width_ / 2 - margin_;
         if (clearance < min_clearance){
           min_clearance = clearance;
         }
@@ -186,13 +296,14 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
   return min_clearance;
 }
 
+
 PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud)
 {
   // creating starting path (with terrible score)
   auto best_path {PathCandidate(-10)};
 
   // weights
-  float w1{1.0f}, w2{1.0f};
+  float w1{0.5f}, w2{1.0f};
 
   // Evaluate all possible paths and select optimal option
   for (float path_curvature = -1 * (car_->limits_.max_curvature_); path_curvature <= car_->limits_.max_curvature_; path_curvature += curvature_sampling_interval_) {
@@ -228,11 +339,16 @@ float Controller::calculateDistanceToGoal(){
   return 0.0; //Placeholder so it builds
 }
 
-ControlCommand Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed)
+Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed)
 {
   PathCandidate path {Controller::evaluatePaths(point_cloud)};
   float speed {Controller::calculateControlSpeed(current_speed, path.free_path_length)};
-  return ControlCommand(speed, path.curvature);
+  return Command(speed, path.curvature);
+}
+
+float Controller::getControlInterval()
+{
+  return control_interval_;
 }
 
 } // namespace time_optimal_1D
@@ -246,7 +362,8 @@ namespace latency_compensation {
 // -------------------------------------------------------------------------
 // & constructor & destructor
 // -------------------------------------------------------------------------
-Controller::Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval, float latency) : car_(car), latency_(latency)
+// Controller::Controller(vehicles::Car car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval, float latency) : car_(car), latency_(latency)
+Controller::Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval, float latency) : latency_(latency)
 {
   // create a new TimeOptimalController to use
   toc_ = new time_optimal_1D::Controller(car, control_interval, margin, max_clearance, curvature_sampling_interval);
@@ -260,42 +377,129 @@ Controller::~Controller()
 // -------------------------------------------------------------------------
 // & adding to command history
 // -------------------------------------------------------------------------
-void Controller::recordCommand(const LatentCommand command)
+void Controller::recordCommand(const CommandStamped command)
 {
   // add the command to the command history
-  command_history_.push(command);
+  command_history_.push_back(command);
+  // std::cout << "New command recorded for timestamp " << command.timestamp << std::endl;
 }
 
-void Controller::recordCommand(const float v, const float c)
+void Controller::recordCommand(const time_optimal_1D::Command command)
 {
   // add the command to the command history
-  Controller::recordCommand(LatentCommand(v, c));
+  Controller::recordCommand(CommandStamped(command));
 }
 
 // -------------------------------------------------------------------------
 // & projecting forward
 // -------------------------------------------------------------------------
-// TODO project the car forward however many timesteps we want
-// TODO transform points into that frame
-// TODO pass the updated information to the 1D time-optimal controller
 
-// void LatencyController::projectForward(std::chrono::milliseconds timestamp)
-// {
-  
-// }
+time_optimal_1D::Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp)
+{
+  std::cout << "0...";
+  // ros::Rate rate(1);
+  // rate.sleep();
+  // using latency, and history of results, project the car's position and velocity forward through time; search the controls queue and pop until a timestamp is newer than the current time
+  State2D projected_state {Controller::projectState(last_data_timestamp)};
+  std::cout << "1...";
+  // use this forward projection to transform the point cloud
+  auto cloud {Controller::transformCloud(point_cloud, projected_state)};
+  std::cout << "2...";
+  // feed these updated parameters into the 1D time-optimal controller
+  time_optimal_1D::Command command {toc_->generateCommand(cloud, projected_state.speed)};
+  std::cout << "3...";
+  // receive a response from the 1D TOC and record it, then bubble it back out to the main
+  Controller::recordCommand(command);
+  std::cout << "4" << std::endl;
+  return command;
+}
 
-// void LatencyController::updateController(std::vector<Eigen::Vector2f> point_cloud)
-// {
-  // using latency, and history of results, project the car's position and velocity forward through time
-  // LatencyController::projectForward();
+State2D Controller::projectState(const double last_msg_timestamp)
+{
+  // setting state to reflect the starting state of the robot
+  State2D state;
+  state.speed = 0;
+  state.position = Eigen::Vector2f {0.f, 0.f};
+  state.theta = 0;
+
+  if (command_history_.size() < 1) {
+    return state;
+  }
+
+  // search queue and discard commands issued before stamp of this data
+  while (command_history_.front().timestamp < last_msg_timestamp) {
+    // std::cout << "Removing command with stamp difference " << command_history_.front().timestamp - last_msg_timestamp << " from history." << std::endl;
+    command_history_.pop_front();
+  }
+
+  // project the future state of the car
+  for (const auto &command : command_history_) {
+    // std::cout << "Latency: " << latency_ << ", Diff: " << command.timestamp - last_msg_timestamp << std::endl;
+    double distance_traveled {command.command.velocity * toc_->getControlInterval()};
+
+    // std::cout << "Speed: " << command.command.velocity << ", Curvature: " << command.command.curvature << std::endl;
+    if (std::abs(command.command.curvature) > 0.01) { // updating for curved case
+      double radius {1 / command.command.curvature};
+      double theta {distance_traveled / radius};
+      state.position.x() += distance_traveled * cos(theta);
+      state.position.y() += distance_traveled * sin(theta);
+      state.theta += theta;
+    } else { // updating for straight case
+      state.position.x() += distance_traveled;
+    }
+    state.speed = command.command.velocity;
+
+    // std::cout << "Updated state: ";
+    // Controller::printState(state);
+  }
+
+  // std::cout << "Returning state: ";
+  // Controller::printState(state);
+  return state;
+}
+
+void Controller::printState(const State2D &state)
+{
+  std::cout << "State is: \n\tPosition:\t(" << state.position.x() << ", " << state.position.y() << ")\n\tTheta:\t\t" << state.theta << "\n\tSpeed:\t\t" << state.speed << std::endl;
+}
+
+std::vector<Eigen::Vector2f> Controller::transformCloud(std::vector<Eigen::Vector2f> cloud, const State2D &state)
+{
+  // generate a transformation matrix from projected state
+  Eigen::Matrix3f transformation_matrix;
+  transformation_matrix << 
+        cos(state.theta), -1 * sin(state.theta), state.position.x(),
+        sin(state.theta),      cos(state.theta), state.position.y(),
+                       0,                     0,                  1;
+
+  // TODO expressly taking the inverse is more expensive than it needs to be, consider replacing this with a more efficient split-up calculation
+  auto inv_transformation_matrix {transformation_matrix.inverse()};
+
+  // use it to transform the cloud points
+  for (std::size_t i = 0; i < cloud.size(); i++) {
+    // std::cout << "Point before: " << cloud[i].transpose() << std::endl;
+    Eigen::Vector3f augmented_point {cloud[i].x(), cloud[i].y(), 1};
+    Eigen::Vector3f transformed_point {inv_transformation_matrix * augmented_point};
+    cloud[i] = Eigen::Vector2f(transformed_point.x(), transformed_point.y());
+    // std::cout << "Point after: " << cloud[i].transpose() << std::endl;
+  }
+  return cloud;
+}
+
+float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature, const double last_data_timestamp)
+{
+  // using latency, and history of results, project the car's position and velocity forward through time; search the controls queue and pop until a timestamp is newer than the current time
+  State2D projected_state {Controller::projectState(last_data_timestamp)};
 
   // use this forward projection to transform the point cloud
+  auto cloud {Controller::transformCloud(point_cloud, projected_state)};
 
   // feed these updated parameters into the 1D time-optimal controller
+  float fpl {toc_->calculateFreePathLength(cloud, curvature)};
+  return fpl;
+}
 
-  // receive a response from the 1D TOC and record it, then bubble it back out to the main
 
-// }
 
 } // namespace latency_compensation
 
