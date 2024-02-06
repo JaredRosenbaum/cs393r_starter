@@ -414,7 +414,7 @@ time_optimal_1D::Command Controller::generateCommand(const std::vector<Vector2f>
   return command;
 }
 
-State2D Controller::projectState(const double last_msg_timestamp)
+State2D Controller::projectState(double last_msg_timestamp)
 {
   // setting state to reflect the starting state of the robot
   State2D state;
@@ -422,12 +422,23 @@ State2D Controller::projectState(const double last_msg_timestamp)
   state.position = Eigen::Vector2f {0.f, 0.f};
   state.theta = 0;
 
+  std::cout << command_history_.size() << std::endl;
   if (command_history_.size() < 1) {
     return state;
   }
 
-  // search queue and discard commands issued before stamp of this data
-  while (command_history_.front().timestamp < last_msg_timestamp) {
+  // // search queue and discard commands issued before stamp of this data
+  // while (command_history_.front().timestamp < last_msg_timestamp) {
+  //   std::cout << "Size of history: " << command_history_.size() << std::endl;
+  //   // std::cout << "Removing command with stamp difference " << command_history_.front().timestamp - last_msg_timestamp << " from history." << std::endl;
+  //   command_history_.pop_front();
+  //   std::cout << "Last of history: " << command_history_.size() << std::endl;
+  // }
+
+  while (!command_history_.empty()) {
+    if (command_history_.front().timestamp >= last_msg_timestamp) {
+      break;
+    }
     // std::cout << "Removing command with stamp difference " << command_history_.front().timestamp - last_msg_timestamp << " from history." << std::endl;
     command_history_.pop_front();
   }
