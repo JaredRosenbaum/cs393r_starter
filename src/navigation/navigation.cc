@@ -204,8 +204,8 @@ void Navigation::Run() {
   // // & testing latency
 
 
-  std::cout << "About to update controller..." << std::endl;
-  std::cout << point_cloud_.size() << ", " << robot_vel_(0) << ", " << last_msg_timestamp_ << std::endl;
+  // std::cout << "About to update controller..." << std::endl;
+  // std::cout << point_cloud_.size() << ", " << robot_vel_(0) << ", " << last_msg_timestamp_ << std::endl;
   // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
   controllers::time_optimal_1D::Command command{latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_)};
   // command = latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_);
@@ -226,7 +226,7 @@ void Navigation::Run() {
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
 
-  std::cout << "End of loop" << std::endl;
+  // std::cout << "End of loop" << std::endl;
 }
 
 }  // namespace navigation

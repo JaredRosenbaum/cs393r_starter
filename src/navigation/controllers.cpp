@@ -343,6 +343,7 @@ Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, co
 {
   PathCandidate path {Controller::evaluatePaths(point_cloud)};
   float speed {Controller::calculateControlSpeed(current_speed, path.free_path_length)};
+  std::cout << "FPL: " << path.free_path_length << ", " << "Current speed: " << current_speed << ", " << "Commanded speed: " << speed << std::endl;
   return Command(speed, path.curvature);
 }
 
@@ -396,33 +397,29 @@ void Controller::recordCommand(const time_optimal_1D::Command command)
 
 time_optimal_1D::Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp)
 {
-  std::cout << "0...";
-  // ros::Rate rate(1);
-  // rate.sleep();
   // using latency, and history of results, project the car's position and velocity forward through time; search the controls queue and pop until a timestamp is newer than the current time
-  State2D projected_state {Controller::projectState(last_data_timestamp)};
-  std::cout << "1...";
+  State2D projected_state {Controller::projectState(current_speed, last_data_timestamp)};
+
   // use this forward projection to transform the point cloud
   auto cloud {Controller::transformCloud(point_cloud, projected_state)};
-  std::cout << "2...";
+
   // feed these updated parameters into the 1D time-optimal controller
   time_optimal_1D::Command command {toc_->generateCommand(cloud, projected_state.speed)};
-  std::cout << "3...";
+
   // receive a response from the 1D TOC and record it, then bubble it back out to the main
   Controller::recordCommand(command);
-  std::cout << "4" << std::endl;
+
   return command;
 }
 
-State2D Controller::projectState(double last_msg_timestamp)
+State2D Controller::projectState(const float current_speed, const double last_msg_timestamp)
 {
   // setting state to reflect the starting state of the robot
   State2D state;
-  state.speed = 0;
+  state.speed = current_speed;
   state.position = Eigen::Vector2f {0.f, 0.f};
   state.theta = 0;
 
-  std::cout << command_history_.size() << std::endl;
   if (command_history_.size() < 1) {
     return state;
   }
@@ -436,10 +433,10 @@ State2D Controller::projectState(double last_msg_timestamp)
   // }
 
   while (!command_history_.empty()) {
-    if (command_history_.front().timestamp >= last_msg_timestamp) {
+    if ((command_history_.front().timestamp + latency_) >= last_msg_timestamp) {
       break;
     }
-    // std::cout << "Removing command with stamp difference " << command_history_.front().timestamp - last_msg_timestamp << " from history." << std::endl;
+    // std::cout << "Removing command with stamp difference " << (command_history_.front().timestamp + latency_) - last_msg_timestamp << " from history." << std::endl;
     command_history_.pop_front();
   }
 
@@ -500,7 +497,7 @@ std::vector<Eigen::Vector2f> Controller::transformCloud(std::vector<Eigen::Vecto
 float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature, const double last_data_timestamp)
 {
   // using latency, and history of results, project the car's position and velocity forward through time; search the controls queue and pop until a timestamp is newer than the current time
-  State2D projected_state {Controller::projectState(last_data_timestamp)};
+  State2D projected_state {Controller::projectState(0.f, last_data_timestamp)};
 
   // use this forward projection to transform the point cloud
   auto cloud {Controller::transformCloud(point_cloud, projected_state)};

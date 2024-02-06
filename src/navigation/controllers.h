@@ -104,7 +104,7 @@ class Controller {
   private:
     vehicles::Car *car_;
 
-    State2D projectState(double last_msg_timestamp);
+    State2D projectState(const float current_speed, const double last_msg_timestamp);
 
     std::vector<Eigen::Vector2f> transformCloud (std::vector<Eigen::Vector2f> cloud, const State2D &state);
 

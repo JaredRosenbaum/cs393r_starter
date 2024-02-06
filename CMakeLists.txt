@@ -1,7 +1,7 @@
 PROJECT(reference_car)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
-SET(CMAKE_BUILD_TYPE Debug)
+# SET(CMAKE_BUILD_TYPE Debug)
 
 MESSAGE(STATUS "Compiling Reference Car Localization + Navigation")
 MESSAGE(STATUS "Using compiler: ${CMAKE_CXX_COMPILER}")
