@@ -57,122 +57,8 @@ if (control_speed < 0) { // prevent reversal
 if (control_speed > v_max) {
   control_speed = v_max;
 }
-  // Accelerate Case
-  // Use kinematic equations to check if we have enough distance to accelerate one more time-step
-  // if (current_speed < car_->limits_.max_speed_ && free_path_length > ((current_speed * control_interval_) + ((current_speed + car_->limits_.max_acceleration_ * pow(control_interval_, 2)) / 2 ) + (pow(current_speed + car_->limits_.max_acceleration_ * control_interval_, 2) / 2 * car_->limits_.max_acceleration_))) {
-  //   control_speed = current_speed + car_->limits_.max_acceleration_ * control_interval_;  // speed increases by acceleration rate
-  //   control_speed = car_->limits_.max_speed_;
-  // }
-  // // Cruise Case
-  // // Use kinematic equations to check if we have enough distance to cruise one more time-step
-  // else if (current_speed == car_->limits_.max_speed_ && free_path_length > 
-  // ((current_speed * control_interval_) + (pow(current_speed, 2) / 2 * car_->limits_.max_acceleration_))) {
-  //   control_speed = current_speed; // speed remains the same
-  // }
-  // // Decelerate Case
-  // // Not enough distance, calculate deceleration rate
-  // else {
-  //   // TODO Remove since we are using a slam on the brakes approach
-  //   // float d = pow(current_speed, 2) / (2 * free_path_length);
-  //   // if ((d < 0) || (std::abs(d) > std::abs(car_->limits_.max_acceleration_))) {
-  //   //   d = car_->limits_.max_acceleration_;
-  //   // }
-  //   // control_speed = current_speed - d * control_interval_;  // speed decreases by acceleration rate
-  //   control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
-  //   if (control_speed < 0)  // prevent reversal
-  //     control_speed = 0;
-  //   control_speed = 0;
-  // }
-
-  return control_speed;
+    return control_speed;
 }
-
-// float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature)
-// {
-//   // line case
-//   if (abs(curvature) < 0.01) {
-//     // TODO handle straight case
-//     return 0.0f;
-//   }
-
-//   // arc case
-
-//   // create vector for turning radius
-//   float turning_radius_magnitude {1.0f / curvature};
-//   Eigen::Vector2f turning_radius {0.0f, turning_radius_magnitude};
-
-//   // calculate other useful vectors
-//   Eigen::Vector2f inside_rear_axle {0.0f, margin_ + car_->dimensions_.width_ / 2};
-//   Eigen::Vector2f inside_front_corner {margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2, margin_ + car_->dimensions_.width_ / 2};
-//   Eigen::Vector2f outside_front_corner {inside_front_corner.x(), -1 * inside_front_corner.y()};
-//   Eigen::Vector2f outside_rear_corner {margin_ + (car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2, margin_ + car_->dimensions_.width_ / 2};
-//   Eigen::Vector2f outside_rear_axle {0.0f, -1 * inside_rear_axle.y()};
-
-//   // flipping signs on y-components (because inside/outside is relative to the direction you're turning)
-//   if (curvature < 0) {
-//     inside_rear_axle.y() = -1 * inside_rear_axle.y();
-//     inside_front_corner.y() = -1 * inside_front_corner.y();
-//     outside_front_corner.y() = -1 * outside_front_corner.y();
-//     outside_rear_corner.y() = -1 * outside_rear_corner.y();
-//     outside_rear_axle.y() = -1 * outside_rear_axle.y();
-//   }
-
-//   // sqrd magntiude calculations (so they don't need to be repeated)
-//   double inside_rear_axle_sqrd {pow(inside_rear_axle.x(), 2) + pow(inside_rear_axle.y(), 2)}; 
-//   double inside_front_corner_sqrd {pow(inside_front_corner.x(), 2) + pow(inside_front_corner.y(), 2)};
-//   double outside_front_corner_sqrd {pow(outside_front_corner.x(), 2) + pow(outside_front_corner.y(), 2)};
-//   double outside_rear_corner_sqrd {pow(outside_rear_corner.x(), 2) + pow(outside_rear_corner.y(), 2)};
-//   double outside_rear_axle_sqrd {pow(outside_rear_axle.x(), 2) + pow(outside_rear_axle.y(), 2)};
-
-//   // loop over points
-//   for (int i = 0; i < (int)point_cloud.size(); i++) {
-
-//     // . calculating vector and magnitude
-//     Eigen::Vector2f point {point_cloud[i]};
-//     double point_sqrd {pow(point.x(), 2) + pow(point.y(), 2)};
-//     // double point_magnitude {sqrt(point_sqrd)};
-
-//     // . calculating angle between point and radius vectors
-//     double theta {atan2(point.y() - turning_radius.y(), point.x() - turning_radius.x())};
-
-//     std::cout << "\tPoint: (" << point.x() << ", " << point.y() << "), theta: " << theta << std::endl;
-
-//     // . broad-face checks
-//     // radius too small to ever be an obstacle
-//     if (point_sqrd < inside_rear_axle_sqrd) {
-//       std::cout << "\t\tToo small!" << std::endl;
-//       continue;
-//     }
-//     // radius too large to ever be an obstacle
-//     if (std::max(outside_front_corner_sqrd, outside_rear_corner_sqrd) < point_sqrd) {
-//       std::cout << "\t\tToo large!" << std::endl;
-//       continue;
-//     }
-
-//     // . narrow-face checks
-//     // point hits inside of car
-//     if ((inside_rear_axle_sqrd < point_sqrd) && (point_sqrd < inside_front_corner_sqrd)) {
-//       // TODO
-//       std::cout << "\t\tSide obstacle!" << std::endl;
-//       // double psi {atan2(inside_rear_axle.y() - turning_radius.y(), inside_rear_axle.x() - turning_radius.x())};
-//     }
-
-//     // point hits front of car
-//     if ((inside_front_corner_sqrd <= point_sqrd) && (point_sqrd <= outside_front_corner_sqrd)) {
-//       // TODO
-//       // ? how can I get the orientation of the vector for the front collision? I know it's length, but don't know its orientation -> if I get this, I can compute the atan(x_diff, y_diff) to get the angle I care about
-//       std::cout << "\t\tFront obstacle!" << std::endl;
-//       // double psi {asin((margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2) / point_magnitude)};
-//     }
-
-//     // point hits rear back corner of car
-//     if ((outside_rear_axle_sqrd < point_sqrd) && (point_sqrd < outside_rear_corner_sqrd)) {
-//       // TODO
-//       std::cout << "\t\tRear obstacle!" << std::endl;
-//     }
-//   }
-//   return 0.0f;
-// }
 
 float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_cloud, float curvature)
 {
@@ -268,9 +154,6 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
 
     }
     //TODO
-    //TODO
-    //TODO For assignment 3, goal should be an input to this function. For now, just hard coding it here.
-    //!!!!!!!!
     //. Limit free path length to closest point of approach
 //    Vector2f goal(10.0, 0);
 //    float theta = atan(goal.x()/radius);
@@ -318,7 +201,6 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
       float point_radius = sqrt(pow(point.x(), 2) + pow((radius - point.y()), 2));
       float theta = atan2(point.x(), (radius - point.y()));
       float phi = free_path_length / radius;
-
       // First check the points that lie along the free path
       if ((0 <= theta && theta <= phi) && (radius - car_->dimensions_.width_ / 2 - margin_ - max_clearance_ <= point_radius && point_radius <= radius + car_->dimensions_.width_ / 2 + margin_ + max_clearance_)) {
         float clearance = std::abs(point_radius * cos(theta) - radius) - car_->dimensions_.width_ / 2 - margin_;
@@ -326,7 +208,6 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
           min_clearance = clearance;
         }
       }
-
       // Then, check the points that will be next to the car at its final position
       Vector2f pos = utils::transforms::transformICOM(point.x(), point.y(), phi, radius);
       if ((car_->dimensions_.width_ / 2 + margin_ <= std::abs(pos.y()) && std::abs(pos.y()) <= max_clearance_) && (0 <= pos.x() && (pos.x() <=  car_->dimensions_.wheelbase_) / 2)) {
@@ -358,7 +239,6 @@ float Controller::calculateDistanceToGoal(const float curvature)
     projected_pos.y() = radius - (radius * cos(phi));
     goal_distance = (goal-projected_pos).norm();
   }
-
   return goal_distance;
 }
 
@@ -393,7 +273,6 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
       best_path = candidate;
     }
   }
-
   // return best path
   return best_path;
 }
@@ -401,9 +280,6 @@ PathCandidate Controller::evaluatePaths(const std::vector<Vector2f>& point_cloud
 Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed)
 {
   PathCandidate path {Controller::evaluatePaths(point_cloud)};
-
-  //std::cout << path.curvature << " " << path.free_path_length << " " << path.clearance << " " << path.goal_distance << " " << path.score << std::endl;
-
   float speed {Controller::calculateControlSpeed(current_speed, path.free_path_length)};
   std::cout << "FPL: " << path.free_path_length << ", " << "Current speed: " << current_speed << ", " << "Commanded speed: " << speed << std::endl;
   return Command(speed, path.curvature);
