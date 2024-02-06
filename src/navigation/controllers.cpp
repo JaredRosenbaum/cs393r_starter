@@ -23,34 +23,58 @@ Controller::Controller(vehicles::Car *car, float control_interval, float margin,
 float Controller::calculateControlSpeed(const float current_speed, const float free_path_length)
 {
   float control_speed {0.0};
+  float v_max = car_->limits_.max_speed_; //Maximum velocity of the car
+  float a_max = car_->limits_.max_acceleration_; //Maximum acceleration of the car
+  float dt = control_interval_; //Control interval
 
+
+  //. Case 1: Accelerate
+  if ((current_speed < car_->limits_.max_speed_) && 
+      (free_path_length >= current_speed*dt + (a_max*dt)*dt/2 + pow((current_speed+a_max*dt),2)/(2*a_max))) {
+        control_speed = current_speed + car_->limits_.max_acceleration_ * control_interval_;  // speed increases by acceleration rate
+  }  
+  else if ((current_speed == v_max) && (free_path_length >= current_speed*dt + v_max*v_max/(2*a_max))) {
+        control_speed = current_speed;
+  }
+  else if (free_path_length < pow((current_speed),2)/(2*a_max)){
+        control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
+        if (control_speed < 0) { // prevent reversal
+          control_speed = 0;
+        }
+  }
+  else {
+        control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
+        if (control_speed < 0) { // prevent reversal
+          control_speed = 0;
+        }
+        std::cout << "I made it into the weird, fourth case!" << std::endl;
+  }
   // Accelerate Case
   // Use kinematic equations to check if we have enough distance to accelerate one more time-step
-  if (current_speed < car_->limits_.max_speed_ && free_path_length > 
-  ((current_speed * control_interval_) + ((current_speed + car_->limits_.max_acceleration_ * pow(control_interval_, 2)) / 2 ) + (pow(current_speed + car_->limits_.max_acceleration_ * control_interval_, 2) / 2 * car_->limits_.max_acceleration_))) {
-    control_speed = current_speed + car_->limits_.max_acceleration_ * control_interval_;  // speed increases by acceleration rate
-    control_speed = car_->limits_.max_speed_;
-  }
-  // Cruise Case
-  // Use kinematic equations to check if we have enough distance to cruise one more time-step
-  else if (current_speed == car_->limits_.max_speed_ && free_path_length > 
-  ((current_speed * control_interval_) + (pow(current_speed, 2) / 2 * car_->limits_.max_acceleration_))) {
-    control_speed = current_speed; // speed remains the same
-  }
-  // Decelerate Case
-  // Not enough distance, calculate deceleration rate
-  else {
-    // TODO Remove since we are using a slam on the brakes approach
-    // float d = pow(current_speed, 2) / (2 * free_path_length);
-    // if ((d < 0) || (std::abs(d) > std::abs(car_->limits_.max_acceleration_))) {
-    //   d = car_->limits_.max_acceleration_;
-    // }
-    // control_speed = current_speed - d * control_interval_;  // speed decreases by acceleration rate
-    control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
-    if (control_speed < 0)  // prevent reversal
-      control_speed = 0;
-    control_speed = 0;
-  }
+  // if (current_speed < car_->limits_.max_speed_ && free_path_length > ((current_speed * control_interval_) + ((current_speed + car_->limits_.max_acceleration_ * pow(control_interval_, 2)) / 2 ) + (pow(current_speed + car_->limits_.max_acceleration_ * control_interval_, 2) / 2 * car_->limits_.max_acceleration_))) {
+  //   control_speed = current_speed + car_->limits_.max_acceleration_ * control_interval_;  // speed increases by acceleration rate
+  //   control_speed = car_->limits_.max_speed_;
+  // }
+  // // Cruise Case
+  // // Use kinematic equations to check if we have enough distance to cruise one more time-step
+  // else if (current_speed == car_->limits_.max_speed_ && free_path_length > 
+  // ((current_speed * control_interval_) + (pow(current_speed, 2) / 2 * car_->limits_.max_acceleration_))) {
+  //   control_speed = current_speed; // speed remains the same
+  // }
+  // // Decelerate Case
+  // // Not enough distance, calculate deceleration rate
+  // else {
+  //   // TODO Remove since we are using a slam on the brakes approach
+  //   // float d = pow(current_speed, 2) / (2 * free_path_length);
+  //   // if ((d < 0) || (std::abs(d) > std::abs(car_->limits_.max_acceleration_))) {
+  //   //   d = car_->limits_.max_acceleration_;
+  //   // }
+  //   // control_speed = current_speed - d * control_interval_;  // speed decreases by acceleration rate
+  //   control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
+  //   if (control_speed < 0)  // prevent reversal
+  //     control_speed = 0;
+  //   control_speed = 0;
+  // }
 
   return control_speed;
 }

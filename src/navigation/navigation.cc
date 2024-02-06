@@ -184,9 +184,9 @@ void Navigation::Run() {
   // Run the time optimal controller to calculate drive commands
   
   // . regular TOC
-  // controllers::time_optimal_1D::ControlCommand command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
   // . with latency compensation
-  controllers::time_optimal_1D::ControlCommand command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0)), last_msg_timestamp_};
+  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_)};
 
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
