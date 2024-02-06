@@ -58,14 +58,14 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
   float free_path_length {10.0f - (margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2)}; // TODO set this properly
   Vector2f point(0.0, 0.0);
 
-  if (abs(curvature) < 0.01) { // Straight line case
+  if (std::abs(curvature) < 0.01) { // Straight line case
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
 
       // Update minimum free path length for lasers in front of car
       // only consider points in front of the car
-      if (abs(point.y()) < (car_->dimensions_.width_ / 2 + margin_) && point.x() > 0) {
+      if (std::abs(point.y()) < (car_->dimensions_.width_ / 2 + margin_) && point.x() > 0) {
 
         // calculate candidate free path length
         float candidate_free_path_length {point.x() - (margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2)};
@@ -166,14 +166,14 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
   Vector2f point(0.0, 0.0);
   float min_clearance = max_clearance_; // Note: We begin with a maximum clearance range of 0.5m - any obstacles further than this will not be checked. This should be tuned. 
 
-  if (abs(curvature) < 0.01) { // Straight line case
+  if (std::abs(curvature) < 0.01) { // Straight line case
     // Loop through point cloud
     for (int i = 0; i < (int)point_cloud.size(); i++) {
       point = point_cloud[i];
       // If the point lies between the car and the obstacle at the end of the free path, and within the side of the car and the maximum clearance, check clearance. If lower, replace.
       // TODO The second part of this could use a shortening (as described in class on 2/5/24)
-      if ((car_->dimensions_.width_ / 2 + margin_ <= abs(point.y()) && abs(point.y()) <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + car_->dimensions_.wheelbase_))) {
-        float clearance = abs(point.y()) - car_->dimensions_.wheelbase_ / 2 - margin_;
+      if ((car_->dimensions_.width_ / 2 + margin_ <= std::abs(point.y()) && std::abs(point.y()) <= max_clearance_) && (0 <= point.x() && (point.x() <= free_path_length + car_->dimensions_.wheelbase_))) {
+        float clearance = std::abs(point.y()) - car_->dimensions_.wheelbase_ / 2 - margin_;
         if (clearance < min_clearance) {
           min_clearance = clearance;
         }
@@ -200,7 +200,7 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
 
       // First check the points that lie along the free path
       if ((0 <= theta && theta <= phi) && (radius - car_->dimensions_.width_ / 2 - margin_ - max_clearance_ <= point_radius && point_radius <= radius + car_->dimensions_.width_ / 2 + margin_ + max_clearance_)) {
-        float clearance = abs(point_radius * cos(theta) - radius) - car_->dimensions_.width_ / 2 - margin_;
+        float clearance = std::abs(point_radius * cos(theta) - radius) - car_->dimensions_.width_ / 2 - margin_;
         if (clearance < min_clearance) {
           min_clearance = clearance;
         }
@@ -208,8 +208,8 @@ float Controller::calculateClearance(const std::vector<Vector2f>& point_cloud, c
 
       // Then, check the points that will be next to the car at its final position
       Vector2f pos = utils::transforms::transformICOM(point.x(), point.y(), phi, radius);
-      if ((car_->dimensions_.width_ / 2 + margin_ <= abs(pos.y()) && abs(pos.y()) <= max_clearance_) && (0 <= pos.x() && (pos.x() <=  car_->dimensions_.wheelbase_) / 2)) {
-        float clearance = abs(pos.y()) - car_->dimensions_.width_ / 2 - margin_;
+      if ((car_->dimensions_.width_ / 2 + margin_ <= std::abs(pos.y()) && std::abs(pos.y()) <= max_clearance_) && (0 <= pos.x() && (pos.x() <=  car_->dimensions_.wheelbase_) / 2)) {
+        float clearance = std::abs(pos.y()) - car_->dimensions_.width_ / 2 - margin_;
         if (clearance < min_clearance){
           min_clearance = clearance;
         }
@@ -226,7 +226,7 @@ float Controller::calculateDistanceToGoal(const float curvature)
   Vector2f projected_pos(0.0, 0.0);
   float goal_distance = 0;
 
-  if (abs(curvature) < 0.01) {    // Straight line case
+  if (std::abs(curvature) < 0.01) {    // Straight line case
     projected_pos.x() = car_->limits_.max_speed_ * control_interval_;
     goal_distance = (goal-projected_pos).norm();
   }
