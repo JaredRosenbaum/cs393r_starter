@@ -38,17 +38,18 @@ float Controller::calculateControlSpeed(const float current_speed, const float f
   }
   else if (free_path_length < pow((current_speed),2)/(2*a_max)){
         control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
-        if (control_speed < 0) { // prevent reversal
-          control_speed = 0;
-        }
   }
   else {
         control_speed = current_speed - car_->limits_.max_acceleration_ * control_interval_;  // speed decreases by acceleration rate
-        if (control_speed < 0) { // prevent reversal
-          control_speed = 0;
-        }
         std::cout << "I made it into the weird, fourth case!" << std::endl;
   }
+
+if (control_speed < 0) { // prevent reversal
+  control_speed = 0;
+}
+if (control_speed > v_max) {
+  control_speed = 1;
+}
   // Accelerate Case
   // Use kinematic equations to check if we have enough distance to accelerate one more time-step
   // if (current_speed < car_->limits_.max_speed_ && free_path_length > ((current_speed * control_interval_) + ((current_speed + car_->limits_.max_acceleration_ * pow(control_interval_, 2)) / 2 ) + (pow(current_speed + car_->limits_.max_acceleration_ * control_interval_, 2) / 2 * car_->limits_.max_acceleration_))) {
