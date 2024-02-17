@@ -162,9 +162,10 @@ void PublishVisualization() {
   vis_msg_.header.stamp = ros::Time::now();
   ClearVisualizationMsg(vis_msg_);
 
+  // TODO Temporarily commented to work on motion model only.
   PublishParticles();
-  PublishPredictedScan();
-  PublishTrajectory();
+  // PublishPredictedScan();
+  // PublishTrajectory();
   visualization_publisher_.publish(vis_msg_);
 }
 

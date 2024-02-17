@@ -45,8 +45,14 @@ using std::vector;
 using Eigen::Vector2f;
 using Eigen::Vector2i;
 using vector_map::VectorMap;
+using math_util::AngleDiff;
 
+DEFINE_double(pi, 3.1415926, "Pi");
 DEFINE_double(num_particles, 50, "Number of particles");
+DEFINE_double(k1, 0.3, "Error in translation from translation motion");
+DEFINE_double(k2, 0.3, "Error in rotation from translation motion");
+DEFINE_double(k3, 0.3, "Error in rotation from rotation motion");
+DEFINE_double(k4, 0.3, "Error in translation from rotation motion");
 
 namespace particle_filter {
 
@@ -160,13 +166,48 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
   // Implement the motion model predict step here, to propagate the particles
   // forward based on odometry.
 
-
   // You will need to use the Gaussian random number generator provided. For
   // example, to generate a random number from a Gaussian with mean 0, and
   // standard deviation 2:
-  float x = rng_.Gaussian(0.0, 2.0);
-  printf("Random number drawn from Gaussian distribution with 0 mean and "
-         "standard deviation of 2 : %f\n", x);
+  // float x = rng_.Gaussian(0.0, 2.0);
+  // printf("Random number drawn from Gaussian distribution with 0 mean and "
+  //        "standard deviation of 2 : %f\n", x);
+
+  // Ignore new pose set
+  if (odom_initialized_) {
+    // Calculate pose change from odometry reading
+    Vector2f translation_diff = odom_loc - prev_odom_loc_;
+    float rotation_diff = odom_angle - prev_odom_angle_;
+
+    // Ignore unrealistic jumps in odometry
+    if (translation_diff.norm() < 1.0 && abs(rotation_diff) < FLAGS_pi / 4) {
+      // Loop through particles
+      for (auto &particle : particles_) {
+        // Transform odometry pose change to map frame (for particle)
+        Eigen::Rotation2Df rotation_vector(AngleDiff(particle.angle, prev_odom_angle_));
+        Vector2f particle_translation = rotation_vector * translation_diff;
+
+        // Sample noise from a Gaussian distribution
+        float x_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
+        float y_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
+        float rotation_noise = rng_.Gaussian(0.0, FLAGS_k2 * translation_diff.norm() + FLAGS_k3 * rotation_diff);
+
+        // Update particle location from motion model
+        particle.loc[0] += particle_translation[0] + x_noise;
+        particle.loc[1] += particle_translation[1] + y_noise;
+        particle.angle += rotation_diff + rotation_noise;
+      }
+    }
+  }
+  else {
+    prev_odom_loc_ = odom_loc;
+    prev_odom_angle_ = odom_angle;
+    odom_initialized_ = true;
+  }
+
+  // Update previous odometry
+  prev_odom_loc_ = odom_loc;
+  prev_odom_angle_ = odom_angle;
 }
 
 void ParticleFilter::Initialize(const string& map_file,
@@ -176,6 +217,29 @@ void ParticleFilter::Initialize(const string& map_file,
   // was received from the log. Initialize the particles accordingly, e.g. with
   // some distribution around the provided location and angle.
   map_.Load(map_file);
+
+  // Initialize odometry
+  prev_odom_loc_ = loc;
+  prev_odom_angle_ = angle;
+  odom_initialized_ = false;
+
+  // Clear and Initialize particles
+  particles_.clear();
+  for (unsigned i = 0; i < FLAGS_num_particles; i++) {
+    // Generate random number for error
+    float error_x = rng_.UniformRandom(-0.5, 0.5);
+    float error_y = rng_.UniformRandom(-0.5, 0.5);
+    float error_theta = rng_.UniformRandom(-FLAGS_pi / 3, FLAGS_pi / 3);
+
+    // Create particle using error weights
+    Particle p = {
+      Eigen::Vector2f(loc[0] + error_x, loc[1] + error_y),
+      (float)(angle + error_theta),
+      1 / FLAGS_num_particles};
+
+    // Add particle
+    particles_.push_back(p);
+  }
 }
 
 void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr, 
