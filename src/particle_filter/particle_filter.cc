@@ -118,15 +118,19 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
   //   }
   // }
 
-  // TODO There are 1081 rays, did we talk in class about reducing this number for faster computation...
+  // TODO There are 1081 lasers, I remember speaking in class about reducing this number for improved performance. Here I'm reducing by a factor of 5, adjust number if needed in scan.resize() angle_increment = ...!
+  // Will this reduction come into play at a later stage?
+
   // The returned values must be set using the 'scan' variable:
-  scan.reserve(num_ranges);
+  scan.resize(num_ranges / 5);
 
   // Calculate lidar location (0.2m in front of base_link)
   Vector2f lidar_loc = loc + 0.2 * Vector2f(cos(angle), sin(angle));
 
+  // std::cout << loc << "  " << angle << "  " << num_ranges << "  " << angle_min << "  " << angle_max << std::endl;
+
   // Loop through laser scans creating a line for each ray
-  float angle_increment = (angle_max - angle_min) / num_ranges;
+  float angle_increment = (angle_max - angle_min) / num_ranges * 5;
   for (size_t i = 0; i < scan.size(); i++) {
     // Calculate angle of the ray
     float ray_angle = angle + angle_min + i * angle_increment;

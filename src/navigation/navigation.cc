@@ -173,8 +173,10 @@ void Navigation::Run() {
   controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_)};
 
   // Eventually, you will have to set the control values to issue drive commands:
-  drive_msg_.curvature = command.curvature;
-  drive_msg_.velocity = command.velocity;
+  drive_msg_.curvature = 0.0;
+  drive_msg_.velocity = 0.5;
+  // drive_msg_.curvature = command.curvature;
+  // drive_msg_.velocity = command.velocity;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
