@@ -163,7 +163,7 @@ void PublishVisualization() {
   ClearVisualizationMsg(vis_msg_);
 
   // TODO Temporary comment
-  // PublishParticles();
+  PublishParticles();
   PublishPredictedScan();
   // PublishTrajectory();
   visualization_publisher_.publish(vis_msg_);

@@ -49,6 +49,7 @@ using math_util::AngleDiff;
 
 DEFINE_double(pi, 3.1415926, "Pi");
 DEFINE_double(num_particles, 50, "Number of particles");
+// TODO This noise parameters will need to be tuned.
 DEFINE_double(k1, 0.2, "Error in translation from translation motion");
 DEFINE_double(k2, 0.2, "Error in rotation from translation motion");
 DEFINE_double(k3, 0.2, "Error in rotation from rotation motion");
@@ -177,6 +178,12 @@ void ParticleFilter::Update(const vector<float>& ranges,
   // observations for each particle, and assign weights to the particles based
   // on the observation likelihood computed by relating the observation to the
   // predicted point cloud.
+
+
+  // TODO Pseudo Code ideas:
+  // Loop through particle cloud.
+  // - GetPredictedPointCloud
+  // - Implement some logic to assign weights compared to the newly received laser scan. Maybe something with a log likelihood whatever that means mathematically.
 }
 
 void ParticleFilter::Resample() {
@@ -195,6 +202,14 @@ void ParticleFilter::Resample() {
   float x = rng_.UniformRandom(0, 1);
   printf("Random number drawn from uniform distribution between 0 and 1: %f\n",
          x);
+
+
+  // TODO Presudo Code ideas:
+  // Create a distribution from the given particle cloud (i.e. we have 50 particles with different weights)
+  // Sample from this distribution (do not keep duplicates). We should now have a smaller cloud with only more likely particles.
+  // Loop through max num of particles (FLAGS_num_particles)
+  // - Generate new particles to fill up for the removed ones based on our current best location estimate (best location as of our last update).
+  // - Push the particles to the particles_ list.
 }
 
 void ParticleFilter::ObserveLaser(const vector<float>& ranges,
@@ -204,6 +219,13 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
                                   float angle_max) {
   // A new laser scan observation is available (in the laser frame)
   // Call the Update and Resample steps as necessary.
+
+
+  // TODO Pseudo Code ideas:
+  // Implement logic to ignore laser scans if the car hasn't moved a specific threshold.
+  // Call the Update function to update the weights for all the particles based on their observation likelihood and the latest laser scan.
+  // Call the Resample function to update the particle cloud. This will remove unlikely particles, keep likely ones, and add particles closer to true location if necessary.
+  // Lastly, maintain the pose of the particle with the highest weight.(this may be implemented in GetLocation() and we might want to keep a variable with that pose).
 }
 
 // A new odometry value is available. Propagate the particles forward using the motion model.
