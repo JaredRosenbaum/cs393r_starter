@@ -164,7 +164,7 @@ void PublishVisualization() {
 
   // TODO Temporarily commented to work on motion model only.
   PublishParticles();
-  // PublishPredictedScan();
+  PublishPredictedScan();
   // PublishTrajectory();
   visualization_publisher_.publish(vis_msg_);
 }
