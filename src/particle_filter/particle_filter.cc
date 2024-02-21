@@ -259,8 +259,13 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
 
 
   // TODO Pseudo Code ideas:
-  // Implement logic to ignore laser scans if the car hasn't moved a specific threshold.
+  for (auto &particle : particles_) {
+    Update(ranges, range_max, range_max, angle_max, angle_max, &particle);
+  }
+
+  // -For every particle: Calculate the weight of said particle using the update function to compare the expected pointcloud to the viewed pointcloud
   // Call the Update function to update the weights for all the particles based on their observation likelihood and the latest laser scan.
+  // -Trim bad particles and duplicate good particles, according to weights (?). Only do this ever N observations. 
   // Call the Resample function to update the particle cloud. This will remove unlikely particles, keep likely ones, and add particles closer to true location if necessary.
   // Lastly, maintain the pose of the particle with the highest weight.(this may be implemented in GetLocation() and we might want to keep a variable with that pose).
 }
