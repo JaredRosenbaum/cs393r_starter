@@ -125,7 +125,10 @@ void ParticleFilter::Update(const vector<float>& ranges,
   // on the observation likelihood computed by relating the observation to the
   // predicted point cloud.
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
   //Note: Lecture 08, slides around 38
   //note: The weight of a particle just p(s|x), or the sum of p(s|x) for each beam.
   //TODO Work with log likelihood? Lecture 7 slide 32
