@@ -124,6 +124,51 @@ void ParticleFilter::Update(const vector<float>& ranges,
   // observations for each particle, and assign weights to the particles based
   // on the observation likelihood computed by relating the observation to the
   // predicted point cloud.
+<<<<<<< Updated upstream
+=======
+  //Note: Lecture 08, slides around 38
+  //note: The weight of a particle just p(s|x), or the sum of p(s|x) for each beam.
+  //TODO Work with log likelihood? Lecture 7 slide 32
+  //TODO Multiply previous weight?
+  // TODO Pseudo Code ideas:
+  //note observed reading is s^, expected is s
+  //! D_long and D_short to be tuned!!! 
+  float d_long = 1.0;
+  float d_short = 0.2;
+  //!What is sigma s?
+  float sigma_s = 1.0;
+  // .Input is the current laserscan, and the particle we want to compare it to.
+  // .For that particle, get the predicted point cloud.
+  vector<Vector2f> scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges`
+  Particle particle = *p_ptr;
+  Eigen::Vector2f particle_loc = particle.loc;
+  float p_ang = particle.angle;
+  int scan_lasers = 1081; //TODO Where can we pull this from? scan.size?
+  GetPredictedPointCloud(particle_loc, p_ang, scan_lasers, range_min, range_max, angle_min, angle_max, &scan);
+  // .For each beam in that point cloud, compare it to the current laserscan. 
+  // .Each beam's p should be calculated with the equation on slide 38
+  float p = 0;
+  for (size_t i=0; i<scan.size(); i++){
+    if (scan[i].norm() < range_min || scan[i].norm() > range_max){
+      p += 0;
+    }
+    else if (scan[i].norm() < ranges[i]-d_short){
+      p += exp(-(d_short*d_short)/(sigma_s*sigma_s));
+    }
+    else if (scan[i].norm() > ranges[i]+d_long){
+      p += exp(-(d_long*d_long)/(sigma_s*sigma_s));
+    }
+    else{
+      p += exp(-pow((scan[i].norm()-ranges[i]),2)/(pow(sigma_s,2)));
+    }
+  }
+  // .Sum these p's, that is the weight for the specific particle. Perhaps normalization is necessary? Maybe to # of beams. 
+  p_ptr->weight = p;
+  
+  // Loop through particle cloud.
+  // - GetPredictedPointCloud
+  // - Implement some logic to assign weights compared to the newly received laser scan. Maybe something with a log likelihood whatever that means mathematically.
+>>>>>>> Stashed changes
 }
 
 void ParticleFilter::Resample() {
@@ -151,6 +196,21 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
                                   float angle_max) {
   // A new laser scan observation is available (in the laser frame)
   // Call the Update and Resample steps as necessary.
+<<<<<<< Updated upstream
+=======
+
+
+  // TODO Pseudo Code ideas:
+  // - Implement logic to ignore laser scans if the car hasn't moved a specific threshold.
+  for (auto &particle : particles_) {
+    Update(ranges, range_min, range_max, angle_min, angle_max, &particle); 
+  }
+  // +For every particle: Calculate the weight of said particle using the update function to compare the expected pointcloud to the viewed pointcloud
+  // Call the Update function to update the weights for all the particles based on their observation likelihood and the latest laser scan.
+  // +Trim bad particles and duplicate good particles, according to weights (?). Only do this ever N observations. 
+  // Call the Resample function to update the particle cloud. This will remove unlikely particles, keep likely ones, and add particles closer to true location if necessary.
+  // Lastly, maintain the pose of the particle with the highest weight.(this may be implemented in GetLocation() and we might want to keep a variable with that pose).
+>>>>>>> Stashed changes
 }
 
 void ParticleFilter::Predict(const Vector2f& odom_loc,
@@ -164,9 +224,52 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
   // You will need to use the Gaussian random number generator provided. For
   // example, to generate a random number from a Gaussian with mean 0, and
   // standard deviation 2:
+<<<<<<< Updated upstream
   float x = rng_.Gaussian(0.0, 2.0);
   printf("Random number drawn from Gaussian distribution with 0 mean and "
          "standard deviation of 2 : %f\n", x);
+=======
+  // float x = rng_.Gaussian(0.0, 2.0);
+  // printf("Random number drawn from Gaussian distribution with 0 mean and "
+  //        "standard deviation of 2 : %f\n", x);
+
+  // Ignore new pose set
+  if (odom_initialized_) {
+    // Calculate pose change from odometry reading
+    Vector2f translation_diff = odom_loc - prev_odom_loc_;
+    float rotation_diff = odom_angle - prev_odom_angle_;
+
+    // Ignore unrealistic jumps in odometry
+    if (translation_diff.norm() < 1.0 && abs(rotation_diff) < FLAGS_pi / 4) {
+      // Loop through particles
+      for (auto &particle : particles_) {
+        // Transform odometry pose change to map frame (for particle)
+        Eigen::Rotation2Df rotation_vector(AngleDiff(particle.angle, prev_odom_angle_));
+        Vector2f particle_translation = rotation_vector * translation_diff;
+
+        // Sample noise from a Gaussian distribution
+        float x_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
+        float y_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
+        float rotation_noise = rng_.Gaussian(0.0, FLAGS_k2 * translation_diff.norm() + FLAGS_k3 * rotation_diff);
+        //TODO: This model can be improved following the strategy declared on lecture 06 slide 19
+
+        // Update particle location from motion model
+        particle.loc[0] += particle_translation[0] + x_noise;
+        particle.loc[1] += particle_translation[1] + y_noise;
+        particle.angle += rotation_diff + rotation_noise;
+      }
+    }
+  }
+  else {
+    prev_odom_loc_ = odom_loc;
+    prev_odom_angle_ = odom_angle;
+    odom_initialized_ = true;
+  }
+
+  // Update previous odometry
+  prev_odom_loc_ = odom_loc;
+  prev_odom_angle_ = odom_angle;
+>>>>>>> Stashed changes
 }
 
 void ParticleFilter::Initialize(const string& map_file,
