@@ -77,48 +77,12 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
                                             float angle_max,
                                             vector<Vector2f>* scan_ptr) {
   vector<Vector2f>& scan = *scan_ptr;
+  //*Look at GetPredictedScan in vector_map.cc
   // Compute what the predicted point cloud would be, if the car was at the pose
   // loc, angle, with the sensor characteristics defined by the provided
   // parameters.
   // This is NOT the motion model predict step: it is the prediction of the
   // expected observations, to be used for the update step.
-
-  // // Note: The returned values must be set using the `scan` variable:
-  // scan.resize(num_ranges);
-  // // Fill in the entries of scan using array writes, e.g. scan[i] = ...
-  // for (size_t i = 0; i < scan.size(); ++i) {
-  //   scan[i] = Vector2f(0, 0);
-  // }
-
-  // // The line segments in the map are stored in the `map_.lines` variable. You
-  // // can iterate through them as:
-  // for (size_t i = 0; i < map_.lines.size(); ++i) {
-  //   const line2f map_line = map_.lines[i];
-  //   // The line2f class has helper functions that will be useful.
-  //   // You can create a new line segment instance as follows, for :
-  //   line2f my_line(1, 2, 3, 4); // Line segment from (1,2) to (3.4).
-  //   // Access the end points using `.p0` and `.p1` members:
-  //   printf("P0: %f, %f P1: %f,%f\n", 
-  //          my_line.p0.x(),
-  //          my_line.p0.y(),
-  //          my_line.p1.x(),
-  //          my_line.p1.y());
-
-  //   // Check for intersections:
-  //   bool intersects = map_line.Intersects(my_line);
-  //   // You can also simultaneously check for intersection, and return the point
-  //   // of intersection:
-  //   Vector2f intersection_point; // Return variable
-  //   intersects = map_line.Intersection(my_line, &intersection_point);
-  //   if (intersects) {
-  //     printf("Intersects at %f,%f\n", 
-  //            intersection_point.x(),
-  //            intersection_point.y());
-  //   } else {
-  //     printf("No intersection\n");
-  //   }
-  // }
-
   // TODO There are 1081 lasers, I remember speaking in class about reducing this number for improved performance. Here I'm reducing by a factor of 5, adjust number if needed in scan.resize() angle_increment = ...!
   // Will this reduction come into play at a later stage?
 
@@ -179,8 +143,48 @@ void ParticleFilter::Update(const vector<float>& ranges,
   // on the observation likelihood computed by relating the observation to the
   // predicted point cloud.
 
+  //Note: Lecture 08, slides around 38
+  //note: The weight of a particle just p(s|x), or the sum of p(s|x) for each beam.
+  //note observed reading is s^, expected is s
+  //TODO Multiply previous weight?
+  //TODO Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
 
-  // TODO Pseudo Code ideas:
+  //! D_long and D_short to be tuned!!! 
+  //!Gamma is tuned to reduce overconfidence
+  //TODO All of these must be tuned. 
+  float d_long = 1.0;
+  float d_short = 0.2;
+  float sigma_s = 1.0; //Intuition was correct, look for lidar spec sheet!! 
+  float gamma = 0.1; //Note: Can range from 1/1081 to 1 (or is it 1/#particles?)
+  
+  
+  vector<Vector2f> scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges`
+  Particle particle = *p_ptr;
+  Eigen::Vector2f particle_loc = particle.loc;
+  float p_ang = particle.angle;
+  int scan_lasers = 1081; //TODO Where can we pull this from? scan.size?
+  GetPredictedPointCloud(particle_loc, p_ang, scan_lasers, range_min, range_max, angle_min, angle_max, &scan);
+
+
+  float p = 0;
+  for (size_t i=0; i<scan.size(); i++){
+    if (scan[i].norm() < range_min || scan[i].norm() > range_max){
+      p += 0; //TODO think about this case, seems like it can be completely cut (according to Amanda also)
+    }
+    else if (scan[i].norm() < ranges[i]-d_short){
+      p += (-(d_short*d_short)/(sigma_s*sigma_s));
+    }
+    else if (scan[i].norm() > ranges[i]+d_long){
+      p += (-(d_long*d_long)/(sigma_s*sigma_s));
+    }
+    else{
+      p += (-pow((scan[i].norm()-ranges[i]),2)/(pow(sigma_s,2)));
+    }
+  }
+  //Product or Sum these p's, that is the weight for the specific particle. 
+  //TODO Normalize to wmax
+  p_ptr->weight = p*-gamma;
+
   // Loop through particle cloud.
   // - GetPredictedPointCloud
   // - Implement some logic to assign weights compared to the newly received laser scan. Maybe something with a log likelihood whatever that means mathematically.
@@ -222,8 +226,14 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
 
 
   // TODO Pseudo Code ideas:
-  // Implement logic to ignore laser scans if the car hasn't moved a specific threshold.
+  //Note: If sensor data is available *and car has travelled at least distance d*
+  for (auto &particle : particles_) {
+    Update(ranges, range_max, range_max, angle_max, angle_max, &particle);
+  }
+
+  // -For every particle: Calculate the weight of said particle using the update function to compare the expected pointcloud to the viewed pointcloud
   // Call the Update function to update the weights for all the particles based on their observation likelihood and the latest laser scan.
+  // -Trim bad particles and duplicate good particles, according to weights (?). Only do this ever N observations. 
   // Call the Resample function to update the particle cloud. This will remove unlikely particles, keep likely ones, and add particles closer to true location if necessary.
   // Lastly, maintain the pose of the particle with the highest weight.(this may be implemented in GetLocation() and we might want to keep a variable with that pose).
 }
