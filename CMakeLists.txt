@@ -67,3 +67,8 @@ ADD_EXECUTABLE(simple_queue_test
 ADD_EXECUTABLE(cimg_example
                src/cimg_example.cc)
 TARGET_LINK_LIBRARIES(cimg_example shared_library ${libs} X11)
+
+# !!!
+ADD_EXECUTABLE(resampling_test
+               src/particle_filter/resampling_test.cpp)
+TARGET_LINK_LIBRARIES(resampling_test shared_library ${libs})

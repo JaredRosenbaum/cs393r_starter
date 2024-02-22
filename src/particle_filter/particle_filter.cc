@@ -36,6 +36,8 @@
 
 #include "vector_map/vector_map.h"
 
+#include <queue>
+
 using geometry::line2f;
 using std::cout;
 using std::endl;
@@ -123,7 +125,8 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
   // Will this reduction come into play at a later stage?
 
   // The returned values must be set using the 'scan' variable:
-  scan.resize(num_ranges / 5);
+  const int laser_downsampling_factor {5};
+  scan.resize(num_ranges / laser_downsampling_factor);
 
   // Calculate lidar location (0.2m in front of base_link)
   Vector2f lidar_loc = loc + 0.2 * Vector2f(cos(angle), sin(angle));
@@ -131,7 +134,7 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
   // std::cout << loc << "  " << angle << "  " << num_ranges << "  " << angle_min << "  " << angle_max << std::endl;
 
   // Loop through laser scans creating a line for each ray
-  float angle_increment = (angle_max - angle_min) / num_ranges * 5;
+  float angle_increment = (angle_max - angle_min) / num_ranges * laser_downsampling_factor;
   for (size_t i = 0; i < scan.size(); i++) {
     // Calculate angle of the ray
     float ray_angle = angle + angle_min + i * angle_increment;
@@ -197,19 +200,69 @@ void ParticleFilter::Resample() {
   // After resampling:
   // particles_ = new_particles;
 
-  // You will need to use the uniform random number generator provided. For
-  // example, to generate a random number between 0 and 1:
-  float x = rng_.UniformRandom(0, 1);
-  printf("Random number drawn from uniform distribution between 0 and 1: %f\n",
-         x);
+  // checking to see if we have anything to resample
+  if (particles_.empty()) {
+      std::cout << "NO EXISTING PARTICLES! Nothing to resample..." << std::endl;
+      return;
+  }
 
+  // create vector for new particles
+  const int n_particles {50};
+  std::vector<particle_filter::Particle> resampled_particles;
+  resampled_particles.reserve(n_particles);
 
-  // TODO Presudo Code ideas:
-  // Create a distribution from the given particle cloud (i.e. we have 50 particles with different weights)
-  // Sample from this distribution (do not keep duplicates). We should now have a smaller cloud with only more likely particles.
-  // Loop through max num of particles (FLAGS_num_particles)
-  // - Generate new particles to fill up for the removed ones based on our current best location estimate (best location as of our last update).
-  // - Push the particles to the particles_ list.
+  // get max weight for normalization
+  double max_particle_weight {particles_[0].weight};
+  if (static_cast<int>(particles_.size()) > 1) {
+    for (std::size_t i = 1; i < particles_.size(); i++) {
+      if (particles_[i].weight > max_particle_weight) {
+        max_particle_weight = particles_[i].weight;
+      }
+    }
+  }
+  
+  // normalize and build discrete distribution for resampling
+  double weights_sum {0.d};
+  std::queue<double> relative_positions;
+  for (std::size_t i = 0; i < particles_.size(); i++) {
+    particles_[i].weight -= max_particle_weight; // normalizing the particle's weight
+    weights_sum += exp(particles_[i].weight); // converting this out of log space to get the range for low-variance resampling
+    relative_positions.push(weights_sum); // keeping track of where the particles fall in the distribution we are going to resample for convenince
+  }
+
+  // create starting point and step size for low-variance resampling
+  // double r {rng_.UniformRandom(0, weights_sum / n_particles)};
+  double low_variance_sampling_step {weights_sum / n_particles}; //
+  double current_sampling_location {rng_.UniformRandom(0, low_variance_sampling_step)}; // starting point for low-variance resampling; constraining it to be within the first step so we don't have to worry about wrapping around
+
+  // resample
+  int original_particle_counter {0}; // to track which particle from the original vector to add to the resampled vector
+  for (std::size_t i = 0; i < n_particles; i++) {
+    while (!relative_positions.empty()) {
+      if (relative_positions.front() < current_sampling_location) {
+          relative_positions.pop();
+          original_particle_counter++;
+      }
+      current_sampling_location += low_variance_sampling_step;
+      resampled_particles.push_back(particles_[original_particle_counter]);
+      break; // to make sure we only increment once for each iteration
+    }
+  }
+
+  // make sure we resampled how many particles we wanted
+  if (static_cast<int>(resampled_particles.size()) != n_particles) {
+    std::cerr << resampled_particles.size() << " particles were resampled instead of " << n_particles << "! Investigate this." << std::endl;
+  }
+
+  // ? should all the particles be unweighted now? Should they be explicitly set to some value or just kept as is here?
+  // ! I'm going to disable this for now so we can use the weights in the GetLocation function, but maybe this is incorrect
+  // double resampled_weight {log(1.d / n_particles)};
+  // for (auto &particle : resampled_particles) {
+  //   particle.weight = resampled_weight;
+  // }
+
+  // assign the resampled particles
+  particles_ = resampled_particles;
 }
 
 void ParticleFilter::ObserveLaser(const vector<float>& ranges,
@@ -319,8 +372,59 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   // Compute the best estimate of the robot's location based on the current set
   // of particles. The computed values must be set to the `loc` and `angle`
   // variables to return them. Modify the following assignments:
-  loc = Vector2f(0, 0);
-  angle = 0;
+  // loc = Vector2f(0, 0);
+  // angle = 0;
+
+  // - two ideas here:
+  // 1) just take the highest-probability particle (this is probably the way to go )
+  // 2) use a weighted average of the particles
+
+  // ! actually, neither of these solutions is possible if the weights are all set to 1/N at the end of the resampling step; for now I'm going to keep the weight on each particle (not reset them to 1/N at the end of Resample) so they can be used here (maybe this won't cause any issues since the weight are reset from zero in the update step anyway?)
+  // get the most likely particle
+  int most_likely_particle_index {0};
+  double most_likely_particle_weight {particles_[0].weight};
+  for (std::size_t i = 1; i < particles_.size(); i++) {
+    if (particles_[i].weight > most_likely_particle_weight) {
+      most_likely_particle_index = static_cast<int>(i);
+      most_likely_particle_weight = particles_[i].weight;
+    }
+  }
+
+  // - for just returning the most likely particle
+  // loc = particles_[most_likely_particle].loc;
+  // angle = particles_[most_likely_particle].angle;
+
+  // but maybe we should use the particles close to the single most likely one?
+  double radial_inclusion_distance {0.5}; // m
+  auto most_likely_location {particles_[most_likely_particle_index].loc};
+
+  auto location_estimate {particles_[most_likely_particle_index].loc};
+  auto angle_estimate {particles_[most_likely_particle_index].angle};
+  int total_considered_particles {0};
+
+  double radial_inclusion_distance_sqrd {pow(radial_inclusion_distance, 2)};
+  for (std::size_t i = 0; i < particles_.size(); i++) {
+    
+    // calculate the distance from the most likely location to the particle
+    double radial_distance_sqrd {pow(particles_[i].loc.x() - most_likely_location.x(), 2) + pow(particles_[i].loc.y() - most_likely_location.y(), 2)};
+
+    // don't consider points farther from the most likely particle than the set distance
+    if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
+
+    // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
+    total_considered_particles++;
+    location_estimate.x() += particles_[i].loc.x();
+    location_estimate.y() += particles_[i].loc.y();
+    angle_estimate += particles_[i].angle;
+  }
+
+  // divide to get averages
+  location_estimate.x() /= total_considered_particles;
+  location_estimate.y() /= total_considered_particles;
+  angle_estimate /= total_considered_particles;
+
+  loc = location_estimate;
+  angle = angle_estimate;
 }
 
 

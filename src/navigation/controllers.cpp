@@ -118,7 +118,7 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
 
       // Condition one: The point hits the inner side of the car
       // if radius is also less than the radius of the front inside corner
-      if (((theta > 0)) && (point_radius >= inside_rear_axle_radius) && (point_radius < inside_front_corner_radius)) {
+      if ((point_radius >= inside_rear_axle_radius) && (point_radius < inside_front_corner_radius) && ((theta > 0))) {
         float psi = acos(inside_rear_axle_radius / point_radius);
         float phi = theta - psi;
         // std::cout << "      A" << std::endl;
@@ -129,7 +129,7 @@ float Controller::calculateFreePathLength(const std::vector<Vector2f>& point_clo
 
       // Condition two: The point hits the front of the car
       // if radius also falls within the radii of the front corners
-      else if ((theta > 0) && (inside_front_corner_radius <= point_radius) && (point_radius < outside_front_corner_radius)) {
+      else if ((inside_front_corner_radius <= point_radius) && (point_radius < outside_front_corner_radius) && (theta > 0)) {
         float psi = asin((margin_ + (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2) / point_radius);
         float phi = theta - psi;
         // std::cout << "      B" << std::endl;
