@@ -162,9 +162,10 @@ void PublishVisualization() {
   vis_msg_.header.stamp = ros::Time::now();
   ClearVisualizationMsg(vis_msg_);
 
+  // TODO Temporary comment
   PublishParticles();
   PublishPredictedScan();
-  PublishTrajectory();
+  // PublishTrajectory();
   visualization_publisher_.publish(vis_msg_);
 }
 
@@ -179,7 +180,8 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
       msg.range_max,
       msg.angle_min,
       msg.angle_max);
-  PublishVisualization();
+  // TODO Temporary Comment
+  // PublishVisualization();
 }
 
 void PublishLocation() {
@@ -245,7 +247,9 @@ void ProcessLive(ros::NodeHandle* n) {
   while (ros::ok() && run_) {
     ros::spinOnce();
     PublishVisualization();
-    Sleep(0.01);
+    // TODO Temporary comment
+    // Sleep(0.01);
+    Sleep(1.0);
   }
 }
 

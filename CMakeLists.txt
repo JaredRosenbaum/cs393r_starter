@@ -1,6 +1,8 @@
 PROJECT(reference_car)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
+# SET(CMAKE_BUILD_TYPE Debug)
+
 MESSAGE(STATUS "Compiling Reference Car Localization + Navigation")
 MESSAGE(STATUS "Using compiler: ${CMAKE_CXX_COMPILER}")
 MESSAGE(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
@@ -52,8 +54,8 @@ TARGET_LINK_LIBRARIES(particle_filter shared_library ${libs})
 ROSBUILD_ADD_EXECUTABLE(navigation
                         src/navigation/navigation_main.cc
                         src/navigation/navigation.cc
-                        src/navigation/controller.cc
-                        src/navigation/functions.cc)
+                        src/navigation/controllers.cpp
+                        src/navigation/functions.cpp)
 TARGET_LINK_LIBRARIES(navigation shared_library ${libs})
 
 ADD_EXECUTABLE(eigen_tutorial

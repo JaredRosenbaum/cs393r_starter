@@ -6,8 +6,7 @@
 */
 //========================================================================
 
-#ifndef FUNCTIONS_H
-#define FUNCTIONS_H
+#pragma once
 
 #include <iostream>
 #include <cmath>
@@ -15,18 +14,20 @@
 
 #include "eigen3/Eigen/Dense"
 
-using Eigen::Vector2f;
+namespace utils {
 
+namespace transforms {
 
-Vector2f Transform_ICOM(float x, float y, float theta, float r);
+Eigen::Vector2f transformICOM(float x, float y, float theta, float r);
 
+Eigen::Vector2f projectPoint(Eigen::Vector2f point, float theta, float radius);
 
+} // namespace transforms
 
+namespace testing {
 
+std::vector<Eigen::Vector2f> generateTestCloud();
 
+} // namespace testing
 
-
-
-
-
-#endif  // FUNCTIONS_H
+} // namespace utils

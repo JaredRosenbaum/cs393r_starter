@@ -43,16 +43,10 @@ using std::vector;
 using namespace math_util;
 using namespace ros_helpers;
 
-#define TIME_STEP         0.05
-#define MAX_SPEED         1.0
-#define MAX_ACCELERATION  4.0
-#define MAX_CURVATURE     1.0
-#define CURVATURE_STEP    0.05
-#define CAR_WIDTH         0.281   // TODO Double check number
-#define CAR_LENGTH        0.535     // TODO Update with correct value
-#define CAR_WHEELBASE     0.324
-#define CAR_TRACK_WIDTH   0.227
-#define CAR_MARGIN        0.05
+// +
+#include "parameters.h"
+// +
+
 
 namespace {
 ros::Publisher drive_pub_;
@@ -63,6 +57,7 @@ AckermannCurvatureDriveMsg drive_msg_;
 // Epsilon value for handling limited numerical precision.
 const float kEpsilon = 1e-5;
 
+<<<<<<< HEAD
 // Time Optimal Controller variables
 //+
 // float distance_traveled_ = 0;
@@ -70,6 +65,8 @@ const float kEpsilon = 1e-5;
 float control_speed_;
 float control_curvature_;
 
+=======
+>>>>>>> 052ff753ad5ec4583389a13a03a67e8824689d45
 } //namespace
 
 namespace navigation {
@@ -89,7 +86,8 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
     robot_omega_(0),
     nav_complete_(true),
     nav_goal_loc_(0, 0),
-    nav_goal_angle_(0) {
+    nav_goal_angle_(0)
+    {
   map_.Load(GetMapFileFromName(map_name));
   drive_pub_ = n->advertise<AckermannCurvatureDriveMsg>(
       "ackermann_curvature_drive", 1);
@@ -101,8 +99,13 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   InitRosHeader("base_link", &drive_msg_.header);
 
   // + 
-  // controller_ = new LatencyController();
-  controller_ = new TimeOptimalController(TIME_STEP, MAX_SPEED, MAX_ACCELERATION, MAX_CURVATURE, CURVATURE_STEP, CAR_WIDTH, CAR_LENGTH, CAR_WHEELBASE, CAR_TRACK_WIDTH, CAR_MARGIN);
+  // instantiating the car
+  car_ = new vehicles::UT_Automata(); // - note this inherits from vehicles::Car and uses the parameters defined in parameters.h
+
+  // instantiating the controller
+  controller_ = new controllers::time_optimal_1D::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL);
+
+  latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
   // +
 }
 
@@ -135,31 +138,49 @@ void Navigation::UpdateOdometry(const Vector2f& loc,
 
 void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
                                    double time) {
-  point_cloud_ = cloud;                                     
+  point_cloud_ = cloud;   
+  last_msg_timestamp_ = time;                       
 }
 
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
-  
-  // Print debug statement
-  // std::cout << "x: " << distance_traveled_ << std::endl;
-  // std::cout << "odom:" << sqrt(pow(odom_loc_[0] - odom_start_loc_[0], 2) + pow(odom_loc_[1] - odom_start_loc_[1], 2)) << std::endl;
 
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
 
+<<<<<<< HEAD
   //+
   control_curvature_ = 0.5;
   // // Visualize pointcloud
+=======
+  // Visualize pointcloud
+>>>>>>> 052ff753ad5ec4583389a13a03a67e8824689d45
   // for (int i = 0; i < (int)point_cloud_.size(); i++) {
   //   Vector2f p = point_cloud_[i];
   //   visualization::DrawCross(p, 0.01, 0, local_viz_msg_);
   // }
 
+  // Visualize car corners
+  Vector2f p(0.0, 0.0);
+  visualization::DrawCross(p, 0.01, 0, local_viz_msg_); // base_link
+  p.x() = -(car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2 - CAR_MARGIN;
+  p.y() = car_->dimensions_.width_ / 2 + CAR_MARGIN;
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Back-left corner
+  p.x() = -(car_->dimensions_.length_ - car_->dimensions_.wheelbase_) / 2 - CAR_MARGIN;
+  p.y() = -1 * (car_->dimensions_.width_ / 2 + CAR_MARGIN);
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Back-right corner
+  p.x() = (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2 + CAR_MARGIN;
+  p.y() = car_->dimensions_.width_ / 2 + CAR_MARGIN;
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Front-left corner
+  p.x() = (car_->dimensions_.length_ + car_->dimensions_.wheelbase_) / 2 + CAR_MARGIN;
+  p.y() = -1 * (car_->dimensions_.width_ / 2 + CAR_MARGIN);
+  visualization::DrawPoint(p, 0, local_viz_msg_); // Front-right corner
+
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
+<<<<<<< HEAD
   // Note: curvature not theta for Calc FPL
   float fpl = controller_->CalculateFreePathLength(point_cloud_, control_curvature_);
   // cout << fpl << std::endl;
@@ -170,13 +191,21 @@ void Navigation::Run() {
   control_speed_ = controller_->CalculateSpeed(fpl);
   // distance_traveled_ += control_speed_ * TIME_STEP;
 
+=======
+>>>>>>> 052ff753ad5ec4583389a13a03a67e8824689d45
   // The control iteration goes here.
-
   // The latest observed point cloud is accessible via "point_cloud_"
 
+  // . regular TOC
+  // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  // . with latency compensation
+  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_)};
+
   // Eventually, you will have to set the control values to issue drive commands:
-  drive_msg_.curvature = control_curvature_;
-  drive_msg_.velocity = control_speed_;
+  drive_msg_.curvature = 0.0;
+  drive_msg_.velocity = 0.5;
+  // drive_msg_.curvature = command.curvature;
+  // drive_msg_.velocity = command.velocity;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
@@ -187,6 +216,8 @@ void Navigation::Run() {
   viz_pub_.publish(local_viz_msg_);
   viz_pub_.publish(global_viz_msg_);
   drive_pub_.publish(drive_msg_);
+
+  // std::cout << "End of loop" << std::endl;
 }
 
 }  // namespace navigation

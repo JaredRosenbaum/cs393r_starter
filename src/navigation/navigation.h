@@ -20,12 +20,13 @@
 //========================================================================
 
 #include <vector>
-
 #include "eigen3/Eigen/Dense"
-
 #include "vector_map/vector_map.h"
 
-#include "controller.h"
+// +
+#include "vehicles.hpp"
+#include "controllers.h"
+// +
 
 #ifndef NAVIGATION_H
 #define NAVIGATION_H
@@ -50,6 +51,15 @@ class Navigation {
 
    // Constructor
   explicit Navigation(const std::string& map_file, ros::NodeHandle* n);
+
+  // +
+  // Destructor
+  ~Navigation() {
+    delete car_;
+    delete controller_;
+    delete latency_controller_;
+  }
+  // +
 
   // Used in callback from localization to update position.
   void UpdateLocation(const Eigen::Vector2f& loc, float angle);
@@ -102,8 +112,15 @@ class Navigation {
   float nav_goal_angle_;
   // Map of the environment.
   vector_map::VectorMap map_;
+
+  // +
+  // Car object
+  vehicles::UT_Automata *car_;
   // Controller object
-  TimeOptimalController *controller_;
+  controllers::time_optimal_1D::Controller *controller_;
+  double last_msg_timestamp_;
+  controllers::latency_compensation::Controller *latency_controller_;
+  // +
 };
 
 }  // namespace navigation
