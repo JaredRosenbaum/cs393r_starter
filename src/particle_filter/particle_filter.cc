@@ -77,6 +77,7 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
                                             float angle_max,
                                             vector<Vector2f>* scan_ptr) {
   vector<Vector2f>& scan = *scan_ptr;
+  //*Look at GetPredictedScan in vector_map.cc
   // Compute what the predicted point cloud would be, if the car was at the pose
   // loc, angle, with the sensor characteristics defined by the provided
   // parameters.
@@ -145,31 +146,30 @@ void ParticleFilter::Update(const vector<float>& ranges,
   //Note: Lecture 08, slides around 38
   //note: The weight of a particle just p(s|x), or the sum of p(s|x) for each beam.
   //note observed reading is s^, expected is s
-  //TODO Work with log likelihood? Lecture 7 slide 32
   //TODO Multiply previous weight?
-  //TODO Lecture 08 slide 44, log likelihoods and infitesimally small numbers
+  //TODO Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
 
   //! D_long and D_short to be tuned!!! 
+  //!Gamma is tuned to reduce overconfidence
+  //TODO All of these must be tuned. 
   float d_long = 1.0;
   float d_short = 0.2;
-  //!What is sigma s?
-  float sigma_s = 1.0;
-  //!Gamma is tuned to reduce overconfidence
-  float gamma = 0.1; //Note: Can range from 1/1081 to 1
-  //Input is the current laserscan, and the particle we want to compare it to.
-  //For that particle, get the predicted point cloud.
+  float sigma_s = 1.0; //Intuition was correct, look for lidar spec sheet!! 
+  float gamma = 0.1; //Note: Can range from 1/1081 to 1 (or is it 1/#particles?)
+  
+  
   vector<Vector2f> scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges`
   Particle particle = *p_ptr;
   Eigen::Vector2f particle_loc = particle.loc;
   float p_ang = particle.angle;
   int scan_lasers = 1081; //TODO Where can we pull this from? scan.size?
   GetPredictedPointCloud(particle_loc, p_ang, scan_lasers, range_min, range_max, angle_min, angle_max, &scan);
-  //For each beam in that point cloud, compare it to the current laserscan. 
-  //Each beam's p should be calculated with the equation on slide 38 or some derivative of it
+
+
   float p = 0;
   for (size_t i=0; i<scan.size(); i++){
     if (scan[i].norm() < range_min || scan[i].norm() > range_max){
-      p += 0;
+      p += 0; //TODO think about this case, seems like it can be completely cut (according to Amanda also)
     }
     else if (scan[i].norm() < ranges[i]-d_short){
       p += (-(d_short*d_short)/(sigma_s*sigma_s));
@@ -226,6 +226,7 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
 
 
   // TODO Pseudo Code ideas:
+  //Note: If sensor data is available *and car has travelled at least distance d*
   for (auto &particle : particles_) {
     Update(ranges, range_max, range_max, angle_max, angle_max, &particle);
   }
