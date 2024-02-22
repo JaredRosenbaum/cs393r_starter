@@ -82,43 +82,6 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
   // parameters.
   // This is NOT the motion model predict step: it is the prediction of the
   // expected observations, to be used for the update step.
-
-  // // Note: The returned values must be set using the `scan` variable:
-  // scan.resize(num_ranges);
-  // // Fill in the entries of scan using array writes, e.g. scan[i] = ...
-  // for (size_t i = 0; i < scan.size(); ++i) {
-  //   scan[i] = Vector2f(0, 0);
-  // }
-
-  // // The line segments in the map are stored in the `map_.lines` variable. You
-  // // can iterate through them as:
-  // for (size_t i = 0; i < map_.lines.size(); ++i) {
-  //   const line2f map_line = map_.lines[i];
-  //   // The line2f class has helper functions that will be useful.
-  //   // You can create a new line segment instance as follows, for :
-  //   line2f my_line(1, 2, 3, 4); // Line segment from (1,2) to (3.4).
-  //   // Access the end points using `.p0` and `.p1` members:
-  //   printf("P0: %f, %f P1: %f,%f\n", 
-  //          my_line.p0.x(),
-  //          my_line.p0.y(),
-  //          my_line.p1.x(),
-  //          my_line.p1.y());
-
-  //   // Check for intersections:
-  //   bool intersects = map_line.Intersects(my_line);
-  //   // You can also simultaneously check for intersection, and return the point
-  //   // of intersection:
-  //   Vector2f intersection_point; // Return variable
-  //   intersects = map_line.Intersection(my_line, &intersection_point);
-  //   if (intersects) {
-  //     printf("Intersects at %f,%f\n", 
-  //            intersection_point.x(),
-  //            intersection_point.y());
-  //   } else {
-  //     printf("No intersection\n");
-  //   }
-  // }
-
   // TODO There are 1081 lasers, I remember speaking in class about reducing this number for improved performance. Here I'm reducing by a factor of 5, adjust number if needed in scan.resize() angle_increment = ...!
   // Will this reduction come into play at a later stage?
 
@@ -181,42 +144,46 @@ void ParticleFilter::Update(const vector<float>& ranges,
 
   //Note: Lecture 08, slides around 38
   //note: The weight of a particle just p(s|x), or the sum of p(s|x) for each beam.
+  //note observed reading is s^, expected is s
   //TODO Work with log likelihood? Lecture 7 slide 32
   //TODO Multiply previous weight?
-  // TODO Pseudo Code ideas:
-  //note observed reading is s^, expected is s
+  //TODO Lecture 08 slide 44, log likelihoods and infitesimally small numbers
+
   //! D_long and D_short to be tuned!!! 
   float d_long = 1.0;
   float d_short = 0.2;
   //!What is sigma s?
   float sigma_s = 1.0;
-  // .Input is the current laserscan, and the particle we want to compare it to.
-  // .For that particle, get the predicted point cloud.
+  //!Gamma is tuned to reduce overconfidence
+  float gamma = 0.1; //Note: Can range from 1/1081 to 1
+  //Input is the current laserscan, and the particle we want to compare it to.
+  //For that particle, get the predicted point cloud.
   vector<Vector2f> scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges`
   Particle particle = *p_ptr;
   Eigen::Vector2f particle_loc = particle.loc;
   float p_ang = particle.angle;
   int scan_lasers = 1081; //TODO Where can we pull this from? scan.size?
   GetPredictedPointCloud(particle_loc, p_ang, scan_lasers, range_min, range_max, angle_min, angle_max, &scan);
-  // .For each beam in that point cloud, compare it to the current laserscan. 
-  // .Each beam's p should be calculated with the equation on slide 38
+  //For each beam in that point cloud, compare it to the current laserscan. 
+  //Each beam's p should be calculated with the equation on slide 38 or some derivative of it
   float p = 0;
   for (size_t i=0; i<scan.size(); i++){
     if (scan[i].norm() < range_min || scan[i].norm() > range_max){
       p += 0;
     }
     else if (scan[i].norm() < ranges[i]-d_short){
-      p += exp(-(d_short*d_short)/(sigma_s*sigma_s));
+      p += (-(d_short*d_short)/(sigma_s*sigma_s));
     }
     else if (scan[i].norm() > ranges[i]+d_long){
-      p += exp(-(d_long*d_long)/(sigma_s*sigma_s));
+      p += (-(d_long*d_long)/(sigma_s*sigma_s));
     }
     else{
-      p += exp(-pow((scan[i].norm()-ranges[i]),2)/(pow(sigma_s,2)));
+      p += (-pow((scan[i].norm()-ranges[i]),2)/(pow(sigma_s,2)));
     }
   }
-  // .Sum these p's, that is the weight for the specific particle. Perhaps normalization is necessary? Maybe to # of beams. 
-  p_ptr->weight = p;
+  //Product or Sum these p's, that is the weight for the specific particle. 
+  //TODO Normalize to wmax
+  p_ptr->weight = p*-gamma;
 
   // Loop through particle cloud.
   // - GetPredictedPointCloud
