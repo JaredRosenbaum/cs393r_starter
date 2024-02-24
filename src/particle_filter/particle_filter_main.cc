@@ -104,6 +104,7 @@ void InitializeMsgs() {
 void PublishParticles() {
   vector<particle_filter::Particle> particles;
   particle_filter_.GetParticles(&particles);
+  // std::cout << "Particles: " << particles.size() << std::endl;
   for (const particle_filter::Particle& p : particles) {
     DrawParticle(p.loc, p.angle, vis_msg_);
   }
@@ -170,6 +171,7 @@ void PublishVisualization() {
 }
 
 void LaserCallback(const sensor_msgs::LaserScan& msg) {
+  // std::cout << "In laser callback" << std::endl;
   if (FLAGS_v > 0) {
     printf("Laser t=%f\n", msg.header.stamp.toSec());
   }
@@ -181,7 +183,7 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
       msg.angle_min,
       msg.angle_max);
   // TODO Temporary Comment
-  // PublishVisualization();
+  PublishVisualization();
 }
 
 void PublishLocation() {
@@ -197,6 +199,7 @@ void PublishLocation() {
 }
 
 void OdometryCallback(const nav_msgs::Odometry& msg) {
+  // std::cout << "In odom callback" << std::endl;
   if (FLAGS_v > 0) {
     printf("Odometry t=%f\n", msg.header.stamp.toSec());
   }

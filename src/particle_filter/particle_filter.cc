@@ -64,7 +64,8 @@ config_reader::ConfigReader config_reader_({"config/particle_filter.lua"});
 ParticleFilter::ParticleFilter() :
     prev_odom_loc_(0, 0),
     prev_odom_angle_(0),
-    odom_initialized_(false) {}
+    odom_initialized_(false),
+    resampling_iteration_counter_(0) {}
 
 void ParticleFilter::GetParticles(vector<Particle>* particles) const {
   *particles = particles_;
@@ -160,33 +161,53 @@ void ParticleFilter::Update(const vector<float>& ranges,
   float sigma_s = 1.0; //Intuition was correct, look for lidar spec sheet!! 
   float gamma = 0.1; //Note: Can range from 1/1081 to 1 (or is it 1/#particles?)
   
-  
-  vector<Vector2f> scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges`
+  vector<Vector2f> scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
   Particle particle = *p_ptr;
-  Eigen::Vector2f particle_loc = particle.loc;
-  float p_ang = particle.angle;
-  int scan_lasers = 1081; //TODO Where can we pull this from? scan.size?
-  GetPredictedPointCloud(particle_loc, p_ang, scan_lasers, range_min, range_max, angle_min, angle_max, &scan);
+  GetPredictedPointCloud(particle.loc, particle.angle, ranges.size(), range_min, range_max, angle_min, angle_max, &scan);
 
+  int downsampling_factor {static_cast<int>(ranges.size() / scan.size())};
+  std::vector<float> downsampled_ranges(scan.size());
+  for (std::size_t i = 0; i < scan.size(); i++) {
+    downsampled_ranges[i] = ranges[i * downsampling_factor];
+  }
+
+  int case_0_counter {};
+  int case_1_counter {};
+  int case_2_counter {};
+  int case_3_counter {};
 
   float p = 0;
+
+  const float lidar_base_offset {0.1};
+  Eigen::Vector2f lidar_location = particle.loc + lidar_base_offset * Eigen::Vector2f(cos(particle.angle), sin(particle.angle));
+  
   for (size_t i=0; i<scan.size(); i++){
-    if (scan[i].norm() < range_min || scan[i].norm() > range_max){
+    
+    double scan_range {(scan[i] - lidar_location).norm()};
+    // std::cout << scan_range << ", " << range_min << ", " << range_max << std::endl; 
+
+    if (scan_range < range_min || scan_range > range_max){
       p += 0; //TODO think about this case, seems like it can be completely cut (according to Amanda also)
+      case_0_counter++; 
     }
-    else if (scan[i].norm() < ranges[i]-d_short){
+    else if (scan_range < ranges[i]-d_short){
       p += (-(d_short*d_short)/(sigma_s*sigma_s));
+      case_1_counter++;
     }
-    else if (scan[i].norm() > ranges[i]+d_long){
+    else if (scan_range > ranges[i]+d_long){
       p += (-(d_long*d_long)/(sigma_s*sigma_s));
+      case_2_counter++;
     }
     else{
-      p += (-pow((scan[i].norm()-ranges[i]),2)/(pow(sigma_s,2)));
+      p += (-pow((scan_range-ranges[i]),2)/(pow(sigma_s,2)));
+      case_3_counter++;
     }
   }
   //Product or Sum these p's, that is the weight for the specific particle. 
   //TODO Normalize to wmax
-  p_ptr->weight = p*-gamma;
+  particle.weight = p*-gamma;
+  std::cout << "\tNew particle weight: " << particle.weight << std::endl;
+  std::cout << "\t\t" << case_0_counter << ", " << case_1_counter << ", " << case_2_counter << ", " << case_3_counter << std::endl;
 
   // Loop through particle cloud.
   // - GetPredictedPointCloud
@@ -204,9 +225,11 @@ void ParticleFilter::Resample() {
   // After resampling:
   // particles_ = new_particles;
 
+  std::cout << "\tResampling particles" << std::endl;
+
   // checking to see if we have anything to resample
   if (particles_.empty()) {
-      std::cout << "NO EXISTING PARTICLES! Nothing to resample..." << std::endl;
+      std::cerr << "NO EXISTING PARTICLES! Nothing to resample..." << std::endl;
       return;
   }
 
@@ -219,6 +242,7 @@ void ParticleFilter::Resample() {
   double max_particle_weight {particles_[0].weight};
   if (static_cast<int>(particles_.size()) > 1) {
     for (std::size_t i = 1; i < particles_.size(); i++) {
+      // std::cout << i << ": " << particles_[i].weight << std::endl;
       if (particles_[i].weight > max_particle_weight) {
         max_particle_weight = particles_[i].weight;
       }
@@ -244,8 +268,8 @@ void ParticleFilter::Resample() {
   for (std::size_t i = 0; i < n_particles; i++) {
     while (!relative_positions.empty()) {
       if (relative_positions.front() < current_sampling_location) {
-          relative_positions.pop();
-          original_particle_counter++;
+        relative_positions.pop();
+        original_particle_counter++;
       }
       current_sampling_location += low_variance_sampling_step;
       resampled_particles.push_back(particles_[original_particle_counter]);
@@ -257,6 +281,10 @@ void ParticleFilter::Resample() {
   if (static_cast<int>(resampled_particles.size()) != n_particles) {
     std::cerr << resampled_particles.size() << " particles were resampled instead of " << n_particles << "! Investigate this." << std::endl;
   }
+
+  // for (auto particle : particles_) {
+  //   std::cout << "Resampled: " << particle.weight << std::endl;
+  // }
 
   // ? should all the particles be unweighted now? Should they be explicitly set to some value or just kept as is here?
   // ! I'm going to disable this for now so we can use the weights in the GetLocation function, but maybe this is incorrect
@@ -277,11 +305,15 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // A new laser scan observation is available (in the laser frame)
   // Call the Update and Resample steps as necessary.
 
+  // TODO we actually need to make the distance traveled check happen here
+  // ! record the distance we last updated at? but we shouldn't be predicting either? so this should actually go elsewhere
+
+  std::cout << "\tObserving laser" << std::endl;
 
   // TODO Pseudo Code ideas:
   //Note: If sensor data is available *and car has travelled at least distance d*
   for (auto &particle : particles_) {
-    Update(ranges, range_max, range_max, angle_max, angle_max, &particle);
+    Update(ranges, range_min, range_max, angle_max, angle_max, &particle);
   }
 
   // -For every particle: Calculate the weight of said particle using the update function to compare the expected pointcloud to the viewed pointcloud
@@ -289,6 +321,15 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // -Trim bad particles and duplicate good particles, according to weights (?). Only do this ever N observations. 
   // Call the Resample function to update the particle cloud. This will remove unlikely particles, keep likely ones, and add particles closer to true location if necessary.
   // Lastly, maintain the pose of the particle with the highest weight.(this may be implemented in GetLocation() and we might want to keep a variable with that pose).
+
+  // check how many iterations we have had since resampling, resample if it's time to do so
+  const int resampling_iteration_threshold {10};
+  resampling_iteration_counter_++;
+  if (resampling_iteration_counter_ == resampling_iteration_threshold) {
+    resampling_iteration_counter_ = 0;
+    Resample();
+  }
+  // this should not be called here // GetLocation();
 }
 
 // A new odometry value is available. Propagate the particles forward using the motion model.
@@ -324,6 +365,8 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
         float x_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
         float y_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
         float rotation_noise = rng_.Gaussian(0.0, FLAGS_k2 * translation_diff.norm() + FLAGS_k3 * rotation_diff);
+
+        // std::cout << x_noise << ", " << y_noise << ", " << rotation_noise << std::endl;
 
         // Update particle location from motion model
         particle.loc[0] += particle_translation[0] + x_noise;
@@ -373,6 +416,7 @@ void ParticleFilter::Initialize(const string& map_file,
     // Add particle
     particles_.push_back(p);
   }
+  std::cout << particles_.size() << " particles initialized" << std::endl;
 }
 
 void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr, 
@@ -389,7 +433,7 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   // 1) just take the highest-probability particle (this is probably the way to go )
   // 2) use a weighted average of the particles
 
-  // ! actually, neither of these solutions is possible if the weights are all set to 1/N at the end of the resampling step; for now I'm going to keep the weight on each particle (not reset them to 1/N at the end of Resample) so they can be used here (maybe this won't cause any issues since the weight are reset from zero in the update step anyway?)
+  // ! actually, neither of these solutions is possible if the weights are all set to 1/N at the end of the resampling step; for now I'm going to keep the weight on each particle (not reset them to 1/N at the end of Resample) so they can be used here (maybe this won't cause any issues since the weights are reset from zero in the update step anyway?)
   // get the most likely particle
   int most_likely_particle_index {0};
   double most_likely_particle_weight {particles_[0].weight};
@@ -436,6 +480,5 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   loc = location_estimate;
   angle = angle_estimate;
 }
-
 
 }  // namespace particle_filter

@@ -102,6 +102,8 @@ class ParticleFilter {
   Eigen::Vector2f prev_odom_loc_;
   float prev_odom_angle_;
   bool odom_initialized_;
+
+  int resampling_iteration_counter_;
 };
 }  // namespace slam
 
