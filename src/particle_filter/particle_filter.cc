@@ -178,8 +178,9 @@ void ParticleFilter::Update(const vector<float>& ranges,
 
   float p = 0;
 
-  const float lidar_base_offset {0.1};
-  Eigen::Vector2f lidar_location = particle.loc + lidar_base_offset * Eigen::Vector2f(cos(particle.angle), sin(particle.angle));
+  // const float lidar_base_offset {0.1};
+  const Eigen::Vector2f kLaserLoc(0.2, 0); // pulled from navigation_main.cc
+  Eigen::Vector2f lidar_location = particle.loc + kLaserLoc(0) * Eigen::Vector2f(cos(particle.angle), sin(particle.angle));
   
   for (size_t i=0; i<scan.size(); i++){
     
