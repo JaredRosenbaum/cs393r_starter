@@ -285,13 +285,14 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
                                   float range_max,
                                   float angle_min,
                                   float angle_max) {
-  // A new laser scan observation is available (in the laser frame)
-  // Call the Update and Resample steps as necessary.
 
   // TODO we actually need to make the distance traveled check happen here
   // ! record the distance we last updated at? but we shouldn't be predicting either? so this should actually go elsewhere
 
-  std::cout << "\tObserving laser" << std::endl;
+  // Ignore callback when odometry has not changed 
+  if (!odometry_flag_) {
+    return;
+  }
 
   //Note: If sensor data is available *and car has travelled at least distance d*
   for (auto &particle : particles_) {
@@ -318,23 +319,20 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
 // A new odometry value is available. Propagate the particles forward using the motion model.
 void ParticleFilter::Predict(const Vector2f& odom_loc,
                              const float odom_angle) {
-  // Implement the predict step of the particle filter here.
-  // A new odometry value is available (in the odom frame)
-  // Implement the motion model predict step here, to propagate the particles
-  // forward based on odometry.
-
-  // You will need to use the Gaussian random number generator provided. For
-  // example, to generate a random number from a Gaussian with mean 0, and
-  // standard deviation 2:
-  // float x = rng_.Gaussian(0.0, 2.0);
-  // printf("Random number drawn from Gaussian distribution with 0 mean and "
-  //        "standard deviation of 2 : %f\n", x);
-
   // Ignore new pose set
   if (odom_initialized_) {
     // Calculate pose change from odometry reading
     Vector2f translation_diff = odom_loc - prev_odom_loc_;
     float rotation_diff = odom_angle - prev_odom_angle_;
+
+    // Set flag if odometry change
+    if (translation_diff.norm() < 0.005 && rotation_diff < 0.005) {
+      odometry_flag_ = false;
+      return;
+    }
+    else {
+      odometry_flag_ = true;
+    }
 
     // Ignore unrealistic jumps in odometry
     if (translation_diff.norm() < 1.0 && abs(rotation_diff) < FLAGS_pi / 4) {
