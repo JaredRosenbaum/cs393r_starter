@@ -206,9 +206,10 @@ void ParticleFilter::Update(const vector<float>& ranges,
   }
   //Product or Sum these p's, that is the weight for the specific particle. 
   //TODO Normalize to wmax
-  particle.weight = p*-gamma;
-  std::cout << "\tNew particle weight: " << particle.weight << std::endl;
-  std::cout << "\t\t" << case_0_counter << ", " << case_1_counter << ", " << case_2_counter << ", " << case_3_counter << std::endl;
+  p_ptr->weight = p*-gamma;
+  // std::cout << "In Update: " << p_ptr->weight << std::endl;
+  // std::cout << "\tNew particle weight: " << particle.weight << std::endl;
+  // std::cout << "\t\t" << case_0_counter << ", " << case_1_counter << ", " << case_2_counter << ", " << case_3_counter << std::endl;
 
   // Loop through particle cloud.
   // - GetPredictedPointCloud
@@ -314,7 +315,10 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   // TODO Pseudo Code ideas:
   //Note: If sensor data is available *and car has travelled at least distance d*
   for (auto &particle : particles_) {
+    // std::cout << particle.weight << std::endl;
     Update(ranges, range_min, range_max, angle_max, angle_max, &particle);
+    // std::cout << particle.weight << std::endl;
+    // std::cout << "  " << std::endl;
   }
 
   // -For every particle: Calculate the weight of said particle using the update function to compare the expected pointcloud to the viewed pointcloud
