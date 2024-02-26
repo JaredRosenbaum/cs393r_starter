@@ -174,7 +174,7 @@ void Navigation::Run() {
 
   // Eventually, you will have to set the control values to issue drive commands:
   // drive_msg_.curvature = 0.0;
-  // drive_msg_.velocity = 0.5;
+  // drive_msg_.velocity = 0.1;
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
 

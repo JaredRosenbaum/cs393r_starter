@@ -50,6 +50,7 @@ using vector_map::VectorMap;
 using math_util::AngleDiff;
 
 DEFINE_double(pi, 3.1415926, "Pi");
+//TODO This shouldnt be a double :)
 DEFINE_double(num_particles, 50, "Number of particles");
 // TODO This noise parameters will need to be tuned.
 DEFINE_double(k1, 0.2, "Error in translation from translation motion");
@@ -81,6 +82,11 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
                                             vector<Vector2f>* scan_ptr) {
   vector<Vector2f>& scan = *scan_ptr;
   //*Look at GetPredictedScan in vector_map.cc
+
+  
+
+
+
   // Compute what the predicted point cloud would be, if the car was at the pose
   // loc, angle, with the sensor characteristics defined by the provided
   // parameters.
@@ -131,8 +137,10 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
     }
 
     // Lastly, add obstacle to generated scan
+    // std::cout << ray_intersection.transpose() << std::endl;
     scan[i] = ray_intersection;
   }
+
 }
 
 void ParticleFilter::Update(const vector<float>& ranges,
@@ -141,79 +149,53 @@ void ParticleFilter::Update(const vector<float>& ranges,
                             float angle_min,
                             float angle_max,
                             Particle* p_ptr) {
-  // Implement the update step of the particle filter here.
-  // You will have to use the `GetPredictedPointCloud` to predict the expected
-  // observations for each particle, and assign weights to the particles based
-  // on the observation likelihood computed by relating the observation to the
-  // predicted point cloud.
-
-  //Note: Lecture 08, slides around 38
-  //note: The weight of a particle just p(s|x), or the sum of p(s|x) for each beam.
-  //note observed reading is s^, expected is s
   //TODO Multiply previous weight?
+  //TODO Normalize to wmax
   //TODO Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
 
   //! D_long and D_short to be tuned!!! 
-  //!Gamma is tuned to reduce overconfidence
+  //! Gamma is tuned to reduce overconfidence
   //TODO All of these must be tuned. 
   float d_long = 1.0;
-  float d_short = 0.2;
-  float sigma_s = 1.0; //Intuition was correct, look for lidar spec sheet!! 
+  float d_short = 0.5;
+  float sigma_s = 0.03; //Intuition was correct, look for lidar spec sheet!! 
   float gamma = 0.1; //Note: Can range from 1/1081 to 1 (or is it 1/#particles?)
   
-  vector<Vector2f> scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
-  Particle particle = *p_ptr;
-  GetPredictedPointCloud(particle.loc, particle.angle, ranges.size(), range_min, range_max, angle_min, angle_max, &scan);
 
-  int downsampling_factor {static_cast<int>(ranges.size() / scan.size())};
-  std::vector<float> downsampled_ranges(scan.size());
-  for (std::size_t i = 0; i < scan.size(); i++) {
+
+  vector<Vector2f> predicted_scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
+  Particle particle = *p_ptr;
+  GetPredictedPointCloud(particle.loc, particle.angle, ranges.size(), range_min, range_max, angle_min, angle_max, &predicted_scan);
+
+  int downsampling_factor {static_cast<int>(ranges.size() / predicted_scan.size())};
+  std::vector<float> downsampled_ranges(predicted_scan.size());
+  for (std::size_t i = 0; i < predicted_scan.size(); i++) {
     downsampled_ranges[i] = ranges[i * downsampling_factor];
   }
 
-  int case_0_counter {};
-  int case_1_counter {};
-  int case_2_counter {};
-  int case_3_counter {};
-
   float p = 0;
 
-  // const float lidar_base_offset {0.1};
   const Eigen::Vector2f kLaserLoc(0.2, 0); // pulled from navigation_main.cc
   Eigen::Vector2f lidar_location = particle.loc + kLaserLoc(0) * Eigen::Vector2f(cos(particle.angle), sin(particle.angle));
-  
-  for (size_t i=0; i<scan.size(); i++){
-    
-    double scan_range {(scan[i] - lidar_location).norm()};
-    // std::cout << scan_range << ", " << range_min << ", " << range_max << std::endl; 
+  for (size_t i=0; i<predicted_scan.size(); i++){
 
-    if (scan_range < range_min || scan_range > range_max){
-      p += 0; //TODO think about this case, seems like it can be completely cut (according to Amanda also)
-      case_0_counter++; 
+    double predicted_scan_range {(predicted_scan[i] - lidar_location).norm()}; 
+
+    // todo add comment
+    if (downsampled_ranges[i] < range_min || downsampled_ranges[i] > range_max){
+      continue;
     }
-    else if (scan_range < ranges[i]-d_short){
+    if (downsampled_ranges[i] < predicted_scan_range-d_short){
       p += (-(d_short*d_short)/(sigma_s*sigma_s));
-      case_1_counter++;
     }
-    else if (scan_range > ranges[i]+d_long){
+    else if (downsampled_ranges[i] > predicted_scan_range+d_long){
       p += (-(d_long*d_long)/(sigma_s*sigma_s));
-      case_2_counter++;
     }
     else{
-      p += (-pow((scan_range-ranges[i]),2)/(pow(sigma_s,2)));
-      case_3_counter++;
+    p += (-pow((downsampled_ranges[i]-predicted_scan_range),2)/(pow(sigma_s,2)));
     }
   }
-  //Product or Sum these p's, that is the weight for the specific particle. 
-  //TODO Normalize to wmax
-  p_ptr->weight = p*-gamma;
-  // std::cout << "In Update: " << p_ptr->weight << std::endl;
-  // std::cout << "\tNew particle weight: " << particle.weight << std::endl;
-  // std::cout << "\t\t" << case_0_counter << ", " << case_1_counter << ", " << case_2_counter << ", " << case_3_counter << std::endl;
-
-  // Loop through particle cloud.
-  // - GetPredictedPointCloud
-  // - Implement some logic to assign weights compared to the newly received laser scan. Maybe something with a log likelihood whatever that means mathematically.
+  p_ptr->weight = p*gamma;
 }
 
 void ParticleFilter::Resample() {
@@ -236,7 +218,7 @@ void ParticleFilter::Resample() {
   }
 
   // create vector for new particles
-  const int n_particles {50};
+  const int n_particles {50}; //TODO: Jared asks is there a reason why this isn't equal to FLAGS_num_particles?
   std::vector<particle_filter::Particle> resampled_particles;
   resampled_particles.reserve(n_particles);
 
@@ -244,7 +226,6 @@ void ParticleFilter::Resample() {
   double max_particle_weight {particles_[0].weight};
   if (static_cast<int>(particles_.size()) > 1) {
     for (std::size_t i = 1; i < particles_.size(); i++) {
-      // std::cout << i << ": " << particles_[i].weight << std::endl;
       if (particles_[i].weight > max_particle_weight) {
         max_particle_weight = particles_[i].weight;
       }
@@ -312,14 +293,11 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
 
   std::cout << "\tObserving laser" << std::endl;
 
-  // TODO Pseudo Code ideas:
   //Note: If sensor data is available *and car has travelled at least distance d*
   for (auto &particle : particles_) {
-    // std::cout << particle.weight << std::endl;
-    Update(ranges, range_min, range_max, angle_max, angle_max, &particle);
-    // std::cout << particle.weight << std::endl;
-    // std::cout << "  " << std::endl;
+    Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
   }
+  std::cout << " " << std::endl;
 
   // -For every particle: Calculate the weight of said particle using the update function to compare the expected pointcloud to the viewed pointcloud
   // Call the Update function to update the weights for all the particles based on their observation likelihood and the latest laser scan.
@@ -408,9 +386,11 @@ void ParticleFilter::Initialize(const string& map_file,
   particles_.clear();
   for (unsigned i = 0; i < FLAGS_num_particles; i++) {
     // Generate random number for error
-    float error_x = rng_.UniformRandom(-0.25, 0.25);
+    float error_x = rng_.UniformRandom(-0.25, 0.25);  
+    // float error_x = 0.0;
     float error_y = rng_.UniformRandom(-0.25, 0.25);
     float error_theta = rng_.UniformRandom(-FLAGS_pi / 6, FLAGS_pi / 6);
+    // float error_theta = 0.0;
 
     // Create particle using error weights
     Particle p = {
@@ -421,6 +401,12 @@ void ParticleFilter::Initialize(const string& map_file,
     // Add particle
     particles_.push_back(p);
   }
+  // Particle perf = {
+  //     Eigen::Vector2f(loc[0], loc[1]),
+  //     (float)(angle),
+  //     1 / FLAGS_num_particles};
+  // particles_.push_back(perf);
+  // particles_.push_back(perf);
   std::cout << particles_.size() << " particles initialized" << std::endl;
 }
 
@@ -450,8 +436,8 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   }
 
   // - for just returning the most likely particle
-  // loc = particles_[most_likely_particle].loc;
-  // angle = particles_[most_likely_particle].angle;
+  // loc = particles_[most_likely_particle_index].loc;
+  // angle = particles_[most_likely_particle_index].angle;
 
   // but maybe we should use the particles close to the single most likely one?
   double radial_inclusion_distance {0.5}; // m
@@ -459,7 +445,7 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
 
   auto location_estimate {particles_[most_likely_particle_index].loc};
   auto angle_estimate {particles_[most_likely_particle_index].angle};
-  int total_considered_particles {0};
+  int total_considered_particles {1};
 
   double radial_inclusion_distance_sqrd {pow(radial_inclusion_distance, 2)};
   for (std::size_t i = 0; i < particles_.size(); i++) {
@@ -484,6 +470,7 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
 
   loc = location_estimate;
   angle = angle_estimate;
+  std::cout << "The best particle is at: " << loc << std::endl;
 }
 
 }  // namespace particle_filter
