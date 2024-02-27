@@ -80,21 +80,21 @@ using math_util::AngleDiff;
 // . efficiency~accuracy tradeoff parameters
 #define n_particles 100 // number of particles instantiated and resampled by filter (200)
 #define laser_downsampling_factor 10 // downsampled laser scan will be 1/N its original size; used to improve computational efficiency (10)
-#define resampling_iteration_threshold 30 // resampling only occurs every n iterations of particle weight updates (10)
+#define resampling_iteration_threshold 10 // resampling only occurs every n iterations of particle weight updates (10)
 
 // . observation model parameters
-#define d_long 1.d // 
+#define d_long 0.5d // 
 #define d_short 0.5d // 
-#define sigma_s 1.0d // std deviation of the LiDAR sensor measurements (0.03d)
-#define gamma 0.02d // scalar on the weight updates for each point in the scan (0.1d)
+#define sigma_s 0.5d // std deviation of the LiDAR sensor measurements (0.03d)
+#define gamma 0.1d // scalar on the weight updates for each point in the scan (0.1d)
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.2)
-DEFINE_double(k2, 0.1, "Error in rotation from translation motion"); // (0.2)
-DEFINE_double(k3, 0.1, "Error in rotation from rotation motion"); // (0.2)
+DEFINE_double(k2, 0.5, "Error in rotation from translation motion"); // (0.2)
+DEFINE_double(k3, 0.8, "Error in rotation from rotation motion"); // (0.2)
 DEFINE_double(k4, 0.5, "Error in translation from rotation motion"); // (0.2)
-DEFINE_double(k5, 1.0, "Error in translation from translation motion along major axis"); // (0.2)
-DEFINE_double(k6, 0.3, "Error in translation from translation motion along minor axis"); // (0.2)
+DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis"); // (0.2)
+DEFINE_double(k6, 0.5, "Error in translation from translation motion along minor axis"); // (0.2)
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
@@ -213,27 +213,27 @@ void ParticleFilter::Update(const vector<float>& ranges,
     // getting the range (magnitude of distance) between the point and the LiDAR sensor's location
     double predicted_scan_range {(predicted_scan[i] - lidar_location).norm()}; 
 
-    // . this is the simple observation likelihood function
-    log_weight += (-1 * pow((downsampled_ranges[i] - predicted_scan_range), 2) / (pow(sigma_s, 2)));
+    // // . this is the simple observation likelihood function
+    // log_weight += (-1 * pow((downsampled_ranges[i] - predicted_scan_range), 2) / (pow(sigma_s, 2)));
 
-    // // . this is a more complete observation likelihood function
-    // // ranges less than the minimum range or greater than the maximum range are excluded; adding some tolerance so 9.999 and 0.201 don't ruin us
-    // // if (downsampled_ranges[i] < range_min || downsampled_ranges[i] > range_max){
-    // float tolerance {0.05};
-    // if (downsampled_ranges[i] < (1 + tolerance) * range_min || downsampled_ranges[i] > (1 - tolerance) * range_max) {continue;}
+    // . this is a more complete observation likelihood function
+    // ranges less than the minimum range or greater than the maximum range are excluded; adding some tolerance so 9.999 and 0.201 don't ruin us
+    // if (downsampled_ranges[i] < range_min || downsampled_ranges[i] > range_max){
+    float tolerance {0.05};
+    if (downsampled_ranges[i] < (1 + tolerance) * range_min || downsampled_ranges[i] > (1 - tolerance) * range_max) {continue;}
 
-    // // if the predicted scan range is less than some value (pred - d_s), treat it as uniform instead of Gaussian
-    // if (downsampled_ranges[i] < predicted_scan_range - d_short) {
-    //   log_weight += (-1 * pow(d_short, 2) / pow(sigma_s, 2));
-    // }
-    // // if the predicted scan range is greater than some value (pred + d_l), treat it as uniform instead of Gaussian
-    // else if (downsampled_ranges[i] > predicted_scan_range+d_long) {
-    //   log_weight += (-1 * pow(d_long, 2) / pow(sigma_s, 2));
-    // }
-    // // simplest case, assumes purely Gaussian distribution between expected and actual ranges
-    // else {
-    //   log_weight += (-1 * pow((downsampled_ranges[i] - predicted_scan_range), 2) / (pow(sigma_s, 2)));
-    // }
+    // if the predicted scan range is less than some value (pred - d_s), treat it as uniform instead of Gaussian
+    if (downsampled_ranges[i] < predicted_scan_range - d_short) {
+      log_weight += (-1 * pow(d_short, 2) / pow(sigma_s, 2));
+    }
+    // if the predicted scan range is greater than some value (pred + d_l), treat it as uniform instead of Gaussian
+    else if (downsampled_ranges[i] > predicted_scan_range+d_long) {
+      log_weight += (-1 * pow(d_long, 2) / pow(sigma_s, 2));
+    }
+    // simplest case, assumes purely Gaussian distribution between expected and actual ranges
+    else {
+      log_weight += (-1 * pow((downsampled_ranges[i] - predicted_scan_range), 2) / (pow(sigma_s, 2)));
+    }
   }
   // assigning weight with some scalar gamma
   p_ptr->weight = gamma * log_weight;
@@ -321,6 +321,18 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
     Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
   }
 
+  // update the weights of each particle
+  double max_weight {log(1e-06d)};
+  for (auto &particle : particles_) {
+    Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
+    if (particle.weight > max_weight){
+      max_weight = particle.weight;
+    }
+  }
+  for (auto &particle : particles_) {
+    particle.weight -= max_weight;
+  }
+
   // check how many iterations we have had since resampling, resample if it's time to do so
   // const int resampling_iteration_threshold {10};
   resampling_iteration_counter_++;
@@ -406,7 +418,8 @@ void ParticleFilter::Initialize(const string& map_file,
     float error_x = rng_.UniformRandom(-0.25, 0.25);  
     // float error_x = 0.0;
     float error_y = rng_.UniformRandom(-0.25, 0.25);
-    float error_theta = rng_.UniformRandom(-FLAGS_pi / 6, FLAGS_pi / 6);
+    // float error_theta = rng_.UniformRandom(-FLAGS_pi / 6, FLAGS_pi / 6);
+    float error_theta = rng_.UniformRandom(-FLAGS_pi / 4, FLAGS_pi / 4);
     // float error_theta = 0.0;
 
     // Create particle using error weights
@@ -443,10 +456,10 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   }
 
   // - for just returning the most likely particle
-  loc = particles_[most_likely_particle_index].loc;
-  angle = particles_[most_likely_particle_index].angle;
+  // loc = particles_[most_likely_particle_index].loc;
+  // angle = particles_[most_likely_particle_index].angle;
 
-  // // but maybe we should use the particles close to the single most likely one?
+  // - taking spatial average around most likely particle
   // double radial_inclusion_distance {0.25}; // m
   // auto most_likely_location {particles_[most_likely_particle_index].loc};
 
@@ -477,6 +490,43 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
 
   // loc = location_estimate;
   // angle = angle_estimate;
+
+  // - taking weighted average around most likely particle
+  double radial_inclusion_distance {0.25}; // m
+  auto most_likely_location {particles_[most_likely_particle_index].loc};
+
+  auto location_estimate {particles_[most_likely_particle_index].loc};
+  auto angle_estimate {particles_[most_likely_particle_index].angle};
+  int total_considered_particles {1};
+  auto sum_of_weights {exp(particles_[most_likely_particle_index].weight)};
+
+  double radial_inclusion_distance_sqrd {pow(radial_inclusion_distance, 2)};
+  for (std::size_t i = 0; i < particles_.size(); i++) {
+    
+    // calculate the distance from the most likely location to the particle
+    double radial_distance_sqrd {pow(particles_[i].loc.x() - most_likely_location.x(), 2) + pow(particles_[i].loc.y() - most_likely_location.y(), 2)};
+
+    // don't consider points farther from the most likely particle than the set distance
+    if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
+
+    // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
+    total_considered_particles++;
+    auto weight {exp(particles_[i].weight)};
+    location_estimate.x() += weight * particles_[i].loc.x();
+    location_estimate.y() += weight * particles_[i].loc.y();
+    angle_estimate += weight * particles_[i].angle;
+    sum_of_weights += weight;
+  }
+
+  // std::cout << location_estimate.transpose() << ", " << angle_estimate << ", " << sum_of_weights << std::endl;
+
+  // divide to get averages
+  location_estimate.x() /= sum_of_weights;
+  location_estimate.y() /= sum_of_weights;
+  angle_estimate /= sum_of_weights;
+
+  loc = location_estimate;
+  angle = angle_estimate;
 
   std::cout << "Estimated location: " << loc.transpose() << std::endl;
 }
