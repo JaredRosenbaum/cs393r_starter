@@ -166,7 +166,7 @@ void PublishVisualization() {
   // TODO Temporary comment
   PublishParticles();
   PublishPredictedScan();
-  // PublishTrajectory();
+  PublishTrajectory();
   visualization_publisher_.publish(vis_msg_);
 }
 

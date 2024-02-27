@@ -80,19 +80,19 @@ using math_util::AngleDiff;
 // . efficiency~accuracy tradeoff parameters
 #define n_particles 200 // number of particles instantiated and resampled by filter (200)
 #define laser_downsampling_factor 10 // downsampled laser scan will be 1/N its original size; used to improve computational efficiency (10)
-#define resampling_iteration_threshold 10 // resampling only occurs every n iterations of particle weight updates (10)
+#define resampling_iteration_threshold 30 // resampling only occurs every n iterations of particle weight updates (10)
 
 // . observation model parameters
 #define d_long 1.d // 
 #define d_short 0.5d // 
-#define sigma_s 0.03d // std deviation of the LiDAR sensor measurements (0.03d)
-#define gamma 0.1d // scalar on the weight updates for each point in the scan (0.01d)
+#define sigma_s 0.3d // std deviation of the LiDAR sensor measurements (0.03d)
+#define gamma 0.01d // scalar on the weight updates for each point in the scan (0.01d)
 
 // . motion model noise parameters
-DEFINE_double(k1, 0.2, "Error in translation from translation motion");
-DEFINE_double(k2, 0.2, "Error in rotation from translation motion");
-DEFINE_double(k3, 0.2, "Error in rotation from rotation motion");
-DEFINE_double(k4, 0.2, "Error in translation from rotation motion");
+DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.2)
+DEFINE_double(k2, 0.1, "Error in rotation from translation motion"); // (0.2)
+DEFINE_double(k3, 0.3, "Error in rotation from rotation motion"); // (0.2)
+DEFINE_double(k4, 0.1, "Error in translation from rotation motion"); // (0.2)
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
@@ -214,7 +214,7 @@ void ParticleFilter::Update(const vector<float>& ranges,
     // . this is the simple observation likelihood function
     log_weight += (-1 * pow((downsampled_ranges[i] - predicted_scan_range), 2) / (pow(sigma_s, 2)));
 
-    // . this is a more complete observation likelihood function
+    // // . this is a more complete observation likelihood function
     // // ranges less than the minimum range or greater than the maximum range are excluded; adding some tolerance so 9.999 and 0.201 don't ruin us
     // // if (downsampled_ranges[i] < range_min || downsampled_ranges[i] > range_max){
     // float tolerance {0.05};
@@ -258,7 +258,7 @@ void ParticleFilter::Resample() {
       }
     }
   }
-  
+
   // normalize and build discrete distribution for resampling
   double weights_sum {0.d};
   std::queue<double> relative_positions;
@@ -280,12 +280,12 @@ void ParticleFilter::Resample() {
       if (relative_positions.front() < current_sampling_location) { // checking to see if the front of the discrete probability distribution queue is less than the current sampling location; if it is, we need to move to the next bin to sample
         relative_positions.pop();
         original_particle_counter++;
-        current_sampling_location += low_variance_sampling_step;
       } else { // otherwise, we are in the correct bin and should draw a particle for the resampled distribution
         resampled_particles.push_back(particles_[original_particle_counter]);
         break; // to make sure we only add once particle for each iteration
       }
     }
+    current_sampling_location += low_variance_sampling_step;
   }
 
   // make sure we resampled how many particles we wanted
@@ -431,41 +431,41 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
     }
   }
 
-  // - for just returning the most likely particle
-  loc = particles_[most_likely_particle_index].loc;
-  angle = particles_[most_likely_particle_index].angle;
+  // // - for just returning the most likely particle
+  // loc = particles_[most_likely_particle_index].loc;
+  // angle = particles_[most_likely_particle_index].angle;
 
-  // // but maybe we should use the particles close to the single most likely one?
-  // double radial_inclusion_distance {0.5}; // m
-  // auto most_likely_location {particles_[most_likely_particle_index].loc};
+  // but maybe we should use the particles close to the single most likely one?
+  double radial_inclusion_distance {0.25}; // m
+  auto most_likely_location {particles_[most_likely_particle_index].loc};
 
-  // auto location_estimate {particles_[most_likely_particle_index].loc};
-  // auto angle_estimate {particles_[most_likely_particle_index].angle};
-  // int total_considered_particles {1};
+  auto location_estimate {particles_[most_likely_particle_index].loc};
+  auto angle_estimate {particles_[most_likely_particle_index].angle};
+  int total_considered_particles {1};
 
-  // double radial_inclusion_distance_sqrd {pow(radial_inclusion_distance, 2)};
-  // for (std::size_t i = 0; i < particles_.size(); i++) {
+  double radial_inclusion_distance_sqrd {pow(radial_inclusion_distance, 2)};
+  for (std::size_t i = 0; i < particles_.size(); i++) {
     
-  //   // calculate the distance from the most likely location to the particle
-  //   double radial_distance_sqrd {pow(particles_[i].loc.x() - most_likely_location.x(), 2) + pow(particles_[i].loc.y() - most_likely_location.y(), 2)};
+    // calculate the distance from the most likely location to the particle
+    double radial_distance_sqrd {pow(particles_[i].loc.x() - most_likely_location.x(), 2) + pow(particles_[i].loc.y() - most_likely_location.y(), 2)};
 
-  //   // don't consider points farther from the most likely particle than the set distance
-  //   if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
+    // don't consider points farther from the most likely particle than the set distance
+    if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
 
-  //   // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
-  //   total_considered_particles++;
-  //   location_estimate.x() += particles_[i].loc.x();
-  //   location_estimate.y() += particles_[i].loc.y();
-  //   angle_estimate += particles_[i].angle;
-  // }
+    // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
+    total_considered_particles++;
+    location_estimate.x() += particles_[i].loc.x();
+    location_estimate.y() += particles_[i].loc.y();
+    angle_estimate += particles_[i].angle;
+  }
 
-  // // divide to get averages
-  // location_estimate.x() /= total_considered_particles;
-  // location_estimate.y() /= total_considered_particles;
-  // angle_estimate /= total_considered_particles;
+  // divide to get averages
+  location_estimate.x() /= total_considered_particles;
+  location_estimate.y() /= total_considered_particles;
+  angle_estimate /= total_considered_particles;
 
-  // loc = location_estimate;
-  // angle = angle_estimate;
+  loc = location_estimate;
+  angle = angle_estimate;
   std::cout << "Estimated location: " << loc.transpose() << std::endl;
 }
 
