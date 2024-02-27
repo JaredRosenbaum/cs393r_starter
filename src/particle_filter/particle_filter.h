@@ -104,7 +104,7 @@ class ParticleFilter {
   bool odom_initialized_;
 
   int resampling_iteration_counter_;
-  bool odometry_flag_;
+  bool new_odometry_flag_;
 };
 }  // namespace slam
 
