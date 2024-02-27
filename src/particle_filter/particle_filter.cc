@@ -78,21 +78,21 @@ using math_util::AngleDiff;
 */
 
 // . efficiency~accuracy tradeoff parameters
-#define n_particles 200 // number of particles instantiated and resampled by filter (200)
+#define n_particles 100 // number of particles instantiated and resampled by filter (200)
 #define laser_downsampling_factor 10 // downsampled laser scan will be 1/N its original size; used to improve computational efficiency (10)
-#define resampling_iteration_threshold 30 // resampling only occurs every n iterations of particle weight updates (10)
+#define resampling_iteration_threshold 10 // resampling only occurs every n iterations of particle weight updates (10)
 
 // . observation model parameters
 #define d_long 1.d // 
 #define d_short 0.5d // 
-#define sigma_s 0.3d // std deviation of the LiDAR sensor measurements (0.03d)
-#define gamma 0.01d // scalar on the weight updates for each point in the scan (0.01d)
+#define sigma_s 3.0d // std deviation of the LiDAR sensor measurements (0.03d)
+#define gamma 0.005d // scalar on the weight updates for each point in the scan (0.1d)
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.2)
-DEFINE_double(k2, 0.1, "Error in rotation from translation motion"); // (0.2)
-DEFINE_double(k3, 0.3, "Error in rotation from rotation motion"); // (0.2)
-DEFINE_double(k4, 0.1, "Error in translation from rotation motion"); // (0.2)
+DEFINE_double(k2, 0.5, "Error in rotation from translation motion"); // (0.2)
+DEFINE_double(k3, 0.5, "Error in rotation from rotation motion"); // (0.2)
+DEFINE_double(k4, 0.5, "Error in translation from rotation motion"); // (0.2)
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
@@ -126,7 +126,7 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
   scan.resize(num_ranges / laser_downsampling_factor);
 
   // Calculate lidar location (0.2m in front of base_link)
-  Vector2f lidar_loc = loc + 0.2 * Vector2f(cos(angle), sin(angle));
+  Eigen::Vector2f lidar_loc = loc + 0.2 * Vector2f(cos(angle), sin(angle));
 
   // Loop through laser scans creating a line for each ray
   float angle_increment = (angle_max - angle_min) / num_ranges * laser_downsampling_factor;
@@ -143,7 +143,7 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
     );
 
     // Laserscan maximum value is default ray intersection with the map
-    Vector2f ray_intersection = lidar_loc + range_max * Vector2f(cos(ray_angle), sin(ray_angle));
+    Eigen::Vector2f ray_intersection = lidar_loc + range_max * Vector2f(cos(ray_angle), sin(ray_angle));
     float obstacle_dist = range_max;
 
     // Loop through map lines checking for intersections with the predicted ray
@@ -151,7 +151,7 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
       const line2f map_line = map_.lines[j];
 
       // Check for intersection between ray and map line
-      Vector2f intersection_point;
+      Eigen::Vector2f intersection_point;
       bool intersects = map_line.Intersection(ray, &intersection_point);
 
       // Update if the intersection is closer (deal with multiple collisions, take first obstacle seen)
@@ -186,7 +186,7 @@ void ParticleFilter::Update(const vector<float>& ranges,
   // float gamma = 0.1; //Note: Can range from 1/1081 to 1 (or is it 1/#particles?)
   
   // getting the expected cloud at the particle pose
-  vector<Vector2f> predicted_scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
+  std::vector<Eigen::Vector2f> predicted_scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
   Particle particle = *p_ptr;
   GetPredictedPointCloud(particle.loc, particle.angle, ranges.size(), range_min, range_max, angle_min, angle_max, &predicted_scan);
 
@@ -431,41 +431,42 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
     }
   }
 
-  // // - for just returning the most likely particle
-  // loc = particles_[most_likely_particle_index].loc;
-  // angle = particles_[most_likely_particle_index].angle;
+  // - for just returning the most likely particle
+  loc = particles_[most_likely_particle_index].loc;
+  angle = particles_[most_likely_particle_index].angle;
 
-  // but maybe we should use the particles close to the single most likely one?
-  double radial_inclusion_distance {0.25}; // m
-  auto most_likely_location {particles_[most_likely_particle_index].loc};
+  // // but maybe we should use the particles close to the single most likely one?
+  // double radial_inclusion_distance {0.25}; // m
+  // auto most_likely_location {particles_[most_likely_particle_index].loc};
 
-  auto location_estimate {particles_[most_likely_particle_index].loc};
-  auto angle_estimate {particles_[most_likely_particle_index].angle};
-  int total_considered_particles {1};
+  // auto location_estimate {particles_[most_likely_particle_index].loc};
+  // auto angle_estimate {particles_[most_likely_particle_index].angle};
+  // int total_considered_particles {1};
 
-  double radial_inclusion_distance_sqrd {pow(radial_inclusion_distance, 2)};
-  for (std::size_t i = 0; i < particles_.size(); i++) {
+  // double radial_inclusion_distance_sqrd {pow(radial_inclusion_distance, 2)};
+  // for (std::size_t i = 0; i < particles_.size(); i++) {
     
-    // calculate the distance from the most likely location to the particle
-    double radial_distance_sqrd {pow(particles_[i].loc.x() - most_likely_location.x(), 2) + pow(particles_[i].loc.y() - most_likely_location.y(), 2)};
+  //   // calculate the distance from the most likely location to the particle
+  //   double radial_distance_sqrd {pow(particles_[i].loc.x() - most_likely_location.x(), 2) + pow(particles_[i].loc.y() - most_likely_location.y(), 2)};
 
-    // don't consider points farther from the most likely particle than the set distance
-    if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
+  //   // don't consider points farther from the most likely particle than the set distance
+  //   if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
 
-    // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
-    total_considered_particles++;
-    location_estimate.x() += particles_[i].loc.x();
-    location_estimate.y() += particles_[i].loc.y();
-    angle_estimate += particles_[i].angle;
-  }
+  //   // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
+  //   total_considered_particles++;
+  //   location_estimate.x() += particles_[i].loc.x();
+  //   location_estimate.y() += particles_[i].loc.y();
+  //   angle_estimate += particles_[i].angle;
+  // }
 
-  // divide to get averages
-  location_estimate.x() /= total_considered_particles;
-  location_estimate.y() /= total_considered_particles;
-  angle_estimate /= total_considered_particles;
+  // // divide to get averages
+  // location_estimate.x() /= total_considered_particles;
+  // location_estimate.y() /= total_considered_particles;
+  // angle_estimate /= total_considered_particles;
 
-  loc = location_estimate;
-  angle = angle_estimate;
+  // loc = location_estimate;
+  // angle = angle_estimate;
+
   std::cout << "Estimated location: " << loc.transpose() << std::endl;
 }
 
