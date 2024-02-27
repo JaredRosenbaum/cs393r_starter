@@ -80,19 +80,21 @@ using math_util::AngleDiff;
 // . efficiency~accuracy tradeoff parameters
 #define n_particles 100 // number of particles instantiated and resampled by filter (200)
 #define laser_downsampling_factor 10 // downsampled laser scan will be 1/N its original size; used to improve computational efficiency (10)
-#define resampling_iteration_threshold 10 // resampling only occurs every n iterations of particle weight updates (10)
+#define resampling_iteration_threshold 30 // resampling only occurs every n iterations of particle weight updates (10)
 
 // . observation model parameters
 #define d_long 1.d // 
 #define d_short 0.5d // 
 #define sigma_s 1.0d // std deviation of the LiDAR sensor measurements (0.03d)
-#define gamma 0.5d // scalar on the weight updates for each point in the scan (0.1d)
+#define gamma 0.02d // scalar on the weight updates for each point in the scan (0.1d)
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.2)
-DEFINE_double(k2, 0.5, "Error in rotation from translation motion"); // (0.2)
-DEFINE_double(k3, 0.5, "Error in rotation from rotation motion"); // (0.2)
+DEFINE_double(k2, 0.1, "Error in rotation from translation motion"); // (0.2)
+DEFINE_double(k3, 0.1, "Error in rotation from rotation motion"); // (0.2)
 DEFINE_double(k4, 0.5, "Error in translation from rotation motion"); // (0.2)
+DEFINE_double(k5, 1.0, "Error in translation from translation motion along major axis"); // (0.2)
+DEFINE_double(k6, 0.3, "Error in translation from translation motion along minor axis"); // (0.2)
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
@@ -334,7 +336,7 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
   // Ignore new pose set
   if (odom_initialized_) {
     // Calculate pose change from odometry reading
-    Vector2f translation_diff = odom_loc - prev_odom_loc_;
+    Eigen::Vector2f translation_diff = odom_loc - prev_odom_loc_;
     float rotation_diff = odom_angle - prev_odom_angle_;
 
     // Set flag if odometry has change
@@ -352,12 +354,21 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
       for (auto &particle : particles_) {
         // Transform odometry pose change to map frame (for particle)
         Eigen::Rotation2Df rotation_vector(AngleDiff(particle.angle, prev_odom_angle_));
-        Vector2f particle_translation = rotation_vector * translation_diff;
+        Eigen::Vector2f particle_translation = rotation_vector * translation_diff;
 
-        // Sample noise from a Gaussian distribution
-        float x_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
-        float y_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
-        float rotation_noise = rng_.Gaussian(0.0, FLAGS_k2 * translation_diff.norm() + FLAGS_k3 * rotation_diff);
+        // // Sample noise from a Gaussian distribution
+        // float x_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
+        // float y_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
+        // float rotation_noise = rng_.Gaussian(0.0, FLAGS_k2 * translation_diff.norm() + FLAGS_k3 * rotation_diff);
+
+        // . trying to use ellipse model
+        auto translation_norm {translation_diff.norm()};
+        auto major_axis_noise {rng_.Gaussian(0.0, FLAGS_k5 * translation_norm + FLAGS_k4 * rotation_diff)};
+        auto minor_axis_noise {rng_.Gaussian(0.0, FLAGS_k6 * translation_norm + FLAGS_k4 * rotation_diff)};
+
+        auto x_noise {major_axis_noise * cos(particle.angle) + minor_axis_noise * sin(particle.angle)};
+        auto y_noise {major_axis_noise * sin(particle.angle) + minor_axis_noise * cos(particle.angle)};
+        auto rotation_noise {rng_.Gaussian(0.0, FLAGS_k2 * translation_diff.norm() + FLAGS_k3 * rotation_diff)};
 
         // Update particle location from motion model
         particle.loc[0] += particle_translation[0] + x_noise;
