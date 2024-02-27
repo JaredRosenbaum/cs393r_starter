@@ -85,8 +85,8 @@ using math_util::AngleDiff;
 // . observation model parameters
 #define d_long 1.d // 
 #define d_short 0.5d // 
-#define sigma_s 3.0d // std deviation of the LiDAR sensor measurements (0.03d)
-#define gamma 0.005d // scalar on the weight updates for each point in the scan (0.1d)
+#define sigma_s 1.0d // std deviation of the LiDAR sensor measurements (0.03d)
+#define gamma 0.5d // scalar on the weight updates for each point in the scan (0.1d)
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.2)
