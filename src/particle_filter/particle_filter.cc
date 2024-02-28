@@ -85,8 +85,8 @@ using math_util::AngleDiff;
 // . observation model parameters
 #define d_long 0.5d // 
 #define d_short 0.5d // 
-#define sigma_s 0.5d // std deviation of the LiDAR sensor measurements (0.03d)
-#define gamma 0.1d // scalar on the weight updates for each point in the scan (0.1d)
+#define sigma_s 0.3d // std deviation of the LiDAR sensor measurements (0.03d)
+#define gamma 0.05d // scalar on the weight updates for each point in the scan (0.1d)
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.2)
@@ -316,16 +316,16 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
     return;
   }
 
-  // update the weights of each particle
-  for (auto &particle : particles_) {
-    Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
-  }
+  // // update the weights of each particle
+  // for (auto &particle : particles_) {
+  //   Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
+  // }
 
   // update the weights of each particle
   double max_weight {log(1e-06d)};
   for (auto &particle : particles_) {
     Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
-    if (particle.weight > max_weight){
+    if (particle.weight > max_weight) {
       max_weight = particle.weight;
     }
   }
