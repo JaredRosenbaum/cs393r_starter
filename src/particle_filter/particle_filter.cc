@@ -89,12 +89,12 @@ using math_util::AngleDiff;
 #define gamma 0.05d // scalar on the weight updates for each point in the scan (0.1d)
 
 // . motion model noise parameters
-DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.2)
-DEFINE_double(k2, 0.5, "Error in rotation from translation motion"); // (0.2)
-DEFINE_double(k3, 0.8, "Error in rotation from rotation motion"); // (0.2)
-DEFINE_double(k4, 0.5, "Error in translation from rotation motion"); // (0.2)
-DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis"); // (0.2)
-DEFINE_double(k6, 0.5, "Error in translation from translation motion along minor axis"); // (0.2)
+DEFINE_double(k1, 0.5, "Error in translation from translation motion");
+DEFINE_double(k2, 0.85, "Error in rotation from translation motion");
+DEFINE_double(k3, 0.8, "Error in rotation from rotation motion");
+DEFINE_double(k4, 0.5, "Error in translation from rotation motion");
+DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis");
+DEFINE_double(k6, 0.75, "Error in translation from translation motion along minor axis");
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
@@ -179,14 +179,6 @@ void ParticleFilter::Update(const vector<float>& ranges,
   //TODO Normalize to wmax
   //TODO Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
 
-  //! D_long and D_short to be tuned!!! 
-  //! Gamma is tuned to reduce overconfidence
-  //TODO All of these must be tuned. 
-  // float d_long = 1.0;
-  // float d_short = 0.5;
-  // float sigma_s = 0.03; //Intuition was correct, look for lidar spec sheet!! 
-  // float gamma = 0.1; //Note: Can range from 1/1081 to 1 (or is it 1/#particles?)
-  
   // getting the expected cloud at the particle pose
   std::vector<Eigen::Vector2f> predicted_scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
   Particle particle = *p_ptr;
@@ -416,11 +408,8 @@ void ParticleFilter::Initialize(const string& map_file,
   for (int i = 0; i < n_particles; i++) {
     // Generate random number for error
     float error_x = rng_.UniformRandom(-0.25, 0.25);  
-    // float error_x = 0.0;
     float error_y = rng_.UniformRandom(-0.25, 0.25);
-    // float error_theta = rng_.UniformRandom(-FLAGS_pi / 6, FLAGS_pi / 6);
     float error_theta = rng_.UniformRandom(-FLAGS_pi / 4, FLAGS_pi / 4);
-    // float error_theta = 0.0;
 
     // Create particle using error weights
     Particle p = {
