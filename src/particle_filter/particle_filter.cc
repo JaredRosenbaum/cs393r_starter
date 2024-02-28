@@ -90,9 +90,9 @@ using math_util::AngleDiff;
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.2)
-DEFINE_double(k2, 0.5, "Error in rotation from translation motion"); // (0.2)
+DEFINE_double(k2, 0.4, "Error in rotation from translation motion"); // (0.2)
 DEFINE_double(k3, 0.8, "Error in rotation from rotation motion"); // (0.2)
-DEFINE_double(k4, 0.5, "Error in translation from rotation motion"); // (0.2)
+DEFINE_double(k4, 0.2, "Error in translation from rotation motion"); // (0.2)
 DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis"); // (0.2)
 DEFINE_double(k6, 0.5, "Error in translation from translation motion along minor axis"); // (0.2)
 
@@ -494,6 +494,7 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   // - taking weighted average around most likely particle
   double radial_inclusion_distance {0.25}; // m
   auto most_likely_location {particles_[most_likely_particle_index].loc};
+  auto most_likely_angle {particles_[most_likely_particle_index].weight};
 
   auto location_estimate {particles_[most_likely_particle_index].loc};
   auto angle_estimate {particles_[most_likely_particle_index].angle};
@@ -508,6 +509,7 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
 
     // don't consider points farther from the most likely particle than the set distance
     if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
+    if (std::abs(particles_[i].angle - most_likely_angle) < 0.5) {continue;}
 
     // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
     total_considered_particles++;
