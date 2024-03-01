@@ -8,6 +8,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from amrl_msgs.msg import Localization2DMsg
 import csv
 import os
+import numpy as np
 
 class Trial ():
     def __init__(self, bags, runs, resampling_iteration_threshold, sigma_s, gamma, k3, k5) -> None:
@@ -40,9 +41,6 @@ class Sweeper():
     
     def run_schedule_service (self, req):
         trials = []
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.75, 1.0, 0.8))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.75, 0.8, 0.5))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.75, 0.5, 0.3))
         
         bags = [
             '2020-04-01-17-08-55.bag',
@@ -56,78 +54,99 @@ class Sweeper():
             '2020-04-01-17-25-18.bag',
             '2020-04-01-17-27-15.bag',
         ]
-        trials.append(Trial(bags, 2, 10, 0.25, 0.1, 0.8, 0.3))
-        # runs.append(Trial('2020-04-01-17-23-38.bag', 3, 10, 0.5, 0.1, 0.8, 0.3))
-        # runs.append(Trial('2020-04-01-17-23-38.bag', 3, 10, 0.75, 0.1, 0.8, 0.3))
-
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.25, 0.2, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.5, 0.2, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.75, 0.2, 0.8, 0.2))
+        n_plays = 1
+        # resampling_iterations = [10, 20, 30]
+        # sigmas = [0.3, 0.5, 0.8]
+        # gammas = [0.05, 0.1, 0.5]
+        # k3s = [0.5, 0.75, 1.0]
+        # k5s = [0.2, 0.5, 0.8]
         
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.25, 0.1, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.5, 0.1, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.75, 0.1, 0.8, 0.2))
+        # for resample_it in resampling_iterations:
+        #     for sigma in sigmas:
+        #         for gamma in gammas:
+        #             for k3 in k3s:
+        #                 for k5 in k5s:
+        #                     trials.append(Trial(
+        #                         bags,
+        #                         n_plays,
+        #                         resample_it,
+        #                         sigma,
+        #                         gamma,
+        #                         k3,
+        #                         k5,
+        #                     ))
         
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.25, 0.05, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.5, 0.05, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.75, 0.05, 0.8, 0.2))
+        trials.append(Trial(bags, n_plays, 10, 0.25, 0.1, 0.8, 0.3))
         
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.25, 0.01, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.5, 0.01, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.75, 0.01, 0.8, 0.2))
-        
-        # runs.append(Run('2020-04-01-17-23-38.bag', 10, 0.5, 0.05, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 20, 0.5, 0.05, 0.38, 0.35))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 30, 0.5, 0.05, 0.8, 0.5))
-        
-        # runs.append(Run('2020-04-01-17-23-38.bag', 10, 0.5, 0.05, 0.8, 0.2))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 10, 0.5, 0.05, 0.38, 0.35))
-        # runs.append(Run('2020-04-01-17-23-38.bag', 10, 0.5, 0.05, 0.8, 0.5))
-        for trial in trials:
-            self.run_trial(trial)
+        print(f'Running {len(trials)} trials...')
+        for i in range(len(trials)):
+            self.run_trial(trials[i])
+            print(f'Completed trial {i + 1} of {len(trials)} ({round(100 * (i + 1) / len(trials))}%)')
         print('Done with all trials!')
     
     def run_trial (self, trial:Trial):
+        start_time = time.time()
+        
         print(trial)
         
         data = [
-            ['', 'Bag', 'Runs', 'Resampling It', 'Sigma_s', 'Gamma', 'k3', 'k5'],
-            ['', trial.bag, trial.runs, trial.resampling_iteration_threshold, trial.sigma_s, trial.gamma, trial.k3, trial.k5],
+            ['', 'Runs', 'Resampling It', 'Sigma_s', 'Gamma', 'k3', 'k5'],
+            ['', trial.runs, trial.resampling_iteration_threshold, trial.sigma_s, trial.gamma, trial.k3, trial.k5],
         ]
-        mses = []
-        for _ in range(trial.runs):
-            self.reference_list = []
-            self.estimated_list = []
-            particle_filter_process = subprocess.Popen([
-                'python', 'particle_filter_player.py',
-                # str(n_particles),
-                str(trial.resampling_iteration_threshold),
-                str(trial.sigma_s),
-                str(trial.gamma),
-                str(trial.k3),
-                str(trial.k5),
-            ])
-            time.sleep(1.0)
-            play_bag_process = subprocess.Popen(['python', 'bag_player.py', trial.bag], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = play_bag_process.communicate()
-            
-            # os.killpg(os.getpgid(particle_filter_process.pid), signal.SIGTERM)
-            particle_filter_process.kill()
-            subprocess.run('rosnode kill /particle_filter', shell=True, cwd='/home/dev/cs393r_starter/')
-            time.sleep(3.0)
-            
-            self.initialized = False
-            mses.append(self.compute_mse())
         
-        average_mse = sum(mses) / trial.runs
+        bag_mses = {}
+        
+        for bag in trial.bags:
+            mses = []
+        
+            for _ in range(trial.runs):
+                self.reference_list = []
+                self.estimated_list = []
+                particle_filter_process = subprocess.Popen([
+                    'python', 'particle_filter_player.py',
+                    # str(n_particles),
+                    str(trial.resampling_iteration_threshold),
+                    str(trial.sigma_s),
+                    str(trial.gamma),
+                    str(trial.k3),
+                    str(trial.k5),
+                ])
+                time.sleep(1.0)
+                play_bag_process = subprocess.Popen(['python', 'bag_player.py', bag], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout, stderr = play_bag_process.communicate()
+                
+                # os.killpg(os.getpgid(particle_filter_process.pid), signal.SIGTERM)
+                particle_filter_process.kill()
+                subprocess.run('rosnode kill /particle_filter', shell=True, cwd='/home/dev/cs393r_starter/')
+                time.sleep(3.0)
+                
+                self.initialized = False
+                mses.append(self.compute_mse())
+            
+            # bag_mse = sum(bag_mses) / trial.runs
+            bag_mses[bag] = sum(mses) / trial.runs
+        
+        average_mse = sum(bag_mses.values()) / len(trial.bags)
+        
         filename = os.path.join(self.data_dir, str(average_mse) + str(time.time()) + '.csv')
         with open(filename, 'w', newline='') as csvfile:
             csvwriter = csv.writer(csvfile)
+            
+            for bag in trial.bags:
+                data.append(['', '', bag, bag_mses[bag]])
+            
             csvwriter.writerows(data)
-            mse_row = [average_mse]
-            for mse in mses:
-                mse_row.append(mse)
-            csvwriter.writerow(mse_row)
+            
+            elapsed_time = time.time() - start_time
+            print('Trial took {:.2f} minutes to run.'.format(elapsed_time / 60))
+            
+            csvwriter.writerow(['Avg MSE', average_mse, '', elapsed_time, elapsed_time / 60])
+    
+    def reject_outliers(data, m = 2.):
+        d = np.abs(data - np.median(data))
+        mdev = np.median(d)
+        s = d/mdev if mdev else np.zeros(len(d))
+        return data[s<m]
     
     def compute_mse (self):
         print(f'\tComputing MSE for {len(self.reference_list)} reference locations and {len(self.estimated_list)} estimated locations...')
@@ -135,9 +154,10 @@ class Sweeper():
         if max_length < 1:
             return -1
         
+        # TODO make this check for extreme outliers and reject them!!!
         mse = 0
         for i in range(max_length):
-            mse += (self.reference_list[i].pose.x - self.estimated_list[i].pose.x)**2 + (self.reference_list[i].pose.y - self.estimated_list[i].pose.y)**2 + (self.reference_list[i].pose.theta - self.estimated_list[i].pose.theta)**2
+            mse += (self.reference_list[i].pose.x - self.estimated_list[i].pose.x)**2 + (self.reference_list[i].pose.y - self.estimated_list[i].pose.y)**2 + (0.01 * (self.reference_list[i].pose.theta - self.estimated_list[i].pose.theta))**2
         mse /= max_length
         
         print(f'MSE: {mse}')
