@@ -309,8 +309,7 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
   for (auto &particle : particles_) {
     particle.weight -= max_particle_weight;
   }
-  *top_particle_ = *top_particle;   // Only copy the contents to avoid changes in between particle 
-  }
+  *top_particle_ = *top_particle;   // Only copy the contents to avoid changes in between particle
 
   // check how many iterations we have had since resampling, resample if it's time to do so
   resampling_iteration_counter_++;
