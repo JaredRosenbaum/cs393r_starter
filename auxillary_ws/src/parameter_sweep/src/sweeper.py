@@ -11,17 +11,21 @@ import os
 import numpy as np
 
 class Trial ():
-    def __init__(self, bags, runs, resampling_iteration_threshold, sigma_s, gamma, k3, k5) -> None:
+    def __init__(self, bags, runs, resampling_iteration_threshold, sigma_s, gamma, d_long, d_short, k2, k3, k5, k6) -> None:
         self.bags = bags
         self.runs = runs
         self.resampling_iteration_threshold = resampling_iteration_threshold
         self.sigma_s = sigma_s
         self.gamma = gamma
+        self.d_long = d_long
+        self.d_short = d_short
+        self.k2 = k2
         self.k3 = k3
         self.k5 = k5
+        self.k6 = k6
     
     def __str__(self):
-        return f'Bags:\t\t{self.bags}\nRuns:\t\t{self.runs}\nResampling it:\t{self.resampling_iteration_threshold}\nSigma_s:\t{self.sigma_s}\nGamma:\t\t{self.gamma}\nk3:\t\t{self.k3}\nk5:\t\t{self.k5}'
+        return f'Bags:\t\t{self.bags}\nRuns:\t\t{self.runs}\nResampling it:\t{self.resampling_iteration_threshold}\nSigma_s:\t{self.sigma_s}\nGamma:\t\t{self.gamma}\nd_long:\t\t{self.d_long}\nd_short:\t\t{self.d_short}\nk2:\t\t{self.k2}\nk3:\t\t{self.k3}\nk5:\t\t{self.k5}\nk6:\t\t{self.k6}'
 
 class Sweeper():
     
@@ -55,11 +59,45 @@ class Sweeper():
             '2020-04-01-17-27-15.bag',
         ]
         n_plays = 1
-        # resampling_iterations = [10, 20, 30]
-        # sigmas = [0.3, 0.5, 0.8]
-        # gammas = [0.05, 0.1, 0.5]
-        # k3s = [0.5, 0.75, 1.0]
-        # k5s = [0.2, 0.5, 0.8]
+        resampling_iterations = [10, 20, 30]
+        sigmas = [0.3, 0.5, 0.8]
+        gammas = [0.05, 0.1, 0.5]
+        
+        k2s = [0.1, 0.3, 0.5]
+        k3s = [0.1, 0.3, 0.5]
+        k5s = [0.1, 0.3, 0.5]
+        k6s = [0.1, 0.3, 0.5]
+        
+        n_particles_star = 35
+        resampling_iteration_star = 15
+        
+        sigmas = [0.5, 0.75, 1.0]
+        gammas = [0.1, 0.3, 0.5]
+        d_longs = [0.5, 1.0, 1.5]
+        d_shorts = [0.1, 0.25, 0.5]
+        
+        k2_star = 0.5
+        k3_star = 0.1
+        k5_star = 0.3
+        k6_star = 0.3
+        
+        for sigma in sigmas:
+            for gamma in gammas:
+                for d_long in d_longs:
+                    for d_short in d_shorts:
+                        trials.append(Trial(
+                            bags,
+                            n_plays,
+                            resampling_iteration_star,
+                            sigma,
+                            gamma,
+                            d_long,
+                            d_short,
+                            k2_star,
+                            k3_star,
+                            k5_star,
+                            k6_star,
+                        ))
         
         # for resample_it in resampling_iterations:
         #     for sigma in sigmas:
@@ -76,7 +114,23 @@ class Sweeper():
         #                         k5,
         #                     ))
         
-        trials.append(Trial(bags, n_plays, 10, 0.25, 0.1, 0.8, 0.3))
+        # for k2 in k2s:
+        #     for k3 in k3s:
+        #         for k5 in k5s:
+        #             for k6 in k6s:
+        #                 trials.append(Trial(
+        #                     bags,
+        #                     n_plays,
+        #                     15,
+        #                     0.5,
+        #                     0.1,
+        #                     k2,
+        #                     k3,
+        #                     k5,
+        #                     k6,
+        #                 ))
+        
+        # trials.append(Trial(bags, n_plays, 15, 0.5, 0.1, 0.1, 0.1, 0.1, 0.1))
         
         print(f'Running {len(trials)} trials...')
         for i in range(len(trials)):
@@ -90,8 +144,8 @@ class Sweeper():
         print(trial)
         
         data = [
-            ['', 'Runs', 'Resampling It', 'Sigma_s', 'Gamma', 'k3', 'k5'],
-            ['', trial.runs, trial.resampling_iteration_threshold, trial.sigma_s, trial.gamma, trial.k3, trial.k5],
+            ['', 'Runs', 'Resampling It', 'Sigma_s', 'Gamma', 'd_long', 'd_short', 'k2', 'k3', 'k5', 'k6'],
+            ['', trial.runs, trial.resampling_iteration_threshold, trial.sigma_s, trial.gamma, trial.d_long, trial.d_short, trial.k2, trial.k3, trial.k5, trial.k6],
         ]
         
         bag_mses = {}
@@ -108,8 +162,12 @@ class Sweeper():
                     str(trial.resampling_iteration_threshold),
                     str(trial.sigma_s),
                     str(trial.gamma),
+                    str(trial.d_long),
+                    str(trial.d_short),
+                    str(trial.k2),
                     str(trial.k3),
                     str(trial.k5),
+                    str(trial.k6),
                 ])
                 time.sleep(1.0)
                 play_bag_process = subprocess.Popen(['python', 'bag_player.py', bag], stdout=subprocess.PIPE, stderr=subprocess.PIPE)

@@ -82,9 +82,9 @@ using math_util::AngleDiff;
 // #define laser_downsampling_factor 10 // downsampled laser scan will be 1/N its original size; used to improve computational efficiency (10)
 // #define resampling_iteration_threshold 10 // resampling only occurs every n iterations of particle weight updates (10)
 
-DEFINE_double(n_particles, 100, "Number of particles");
+DEFINE_double(n_particles, 35, "Number of particles"); // 100
 DEFINE_double(laser_downsampling_factor, 10, "Downsampling factor of raw laser scan");
-DEFINE_double(resampling_iteration_threshold, 10, "Iterations between downsampling");
+DEFINE_double(resampling_iteration_threshold, 15, "Iterations between downsampling");
 
 // . observation model parameters
 // #define d_long 0.5d // 
@@ -92,18 +92,18 @@ DEFINE_double(resampling_iteration_threshold, 10, "Iterations between downsampli
 // #define sigma_s 0.3d // std deviation of the LiDAR sensor measurements (0.03d)
 // #define gamma 0.05d // scalar on the weight updates for each point in the scan (0.1d)
 
-DEFINE_double(d_long, 0.5, "d_long");
-DEFINE_double(d_short, 0.5, "d_short");
+DEFINE_double(d_long, 1.0, "d_long"); // 0.5
+DEFINE_double(d_short, 0.2, "d_short"); // 0.5
 DEFINE_double(sigma_s, 0.3, "sigma_s"); // 0.3
 DEFINE_double(gamma, 0.05, "gamma");
 
 // . motion model noise parameters
-DEFINE_double(k1, 0.5, "Error in translation from translation motion"); // (0.5)
-DEFINE_double(k2, 0.5, "Error in rotation from translation motion"); // (0.5)
-DEFINE_double(k3, 0.8, "Error in rotation from rotation motion"); // (0.8)
-DEFINE_double(k4, 0.5, "Error in translation from rotation motion"); // (0.5)
+DEFINE_double(k1, 0.3, "Error in translation from translation motion"); // (0.5)
+DEFINE_double(k2, 0.3, "Error in rotation from translation motion"); // (0.5)
+DEFINE_double(k3, 0.5, "Error in rotation from rotation motion"); // (0.8)
+DEFINE_double(k4, 0.1, "Error in translation from rotation motion"); // (0.5)
 DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis"); // (0.3)
-DEFINE_double(k6, 0.5, "Error in translation from translation motion along minor axis"); // (0.5)
+DEFINE_double(k6, 0.1, "Error in translation from translation motion along minor axis"); // (0.5)
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
@@ -447,6 +447,21 @@ void ParticleFilter::Initialize(const string& map_file,
   // particles_.push_back(perf);
   // particles_.push_back(perf);
   std::cout << particles_.size() << " particles initialized" << std::endl;
+  std::cout << "Current configuration:" <<
+      "\n\tn_particles:\t\t" << FLAGS_n_particles <<
+      "\n\tdownsampling_factor:\t" << FLAGS_laser_downsampling_factor <<
+      "\n\tresampling_it:\t\t" << FLAGS_resampling_iteration_threshold <<
+      "\n\tsigma_s:\t\t" << FLAGS_sigma_s << 
+      "\n\tgamma:\t\t\t" << FLAGS_sigma_s <<
+      "\n\td_long:\t\t\t" << FLAGS_d_long <<
+      "\n\td_short:\t\t" << FLAGS_d_short <<
+      "\n\tk1:\t\t\t" << FLAGS_k1 <<
+      "\n\tk2:\t\t\t" << FLAGS_k2 <<
+      "\n\tk3:\t\t\t" << FLAGS_k3 <<
+      "\n\tk4:\t\t\t" << FLAGS_k4 <<
+      "\n\tk5:\t\t\t" << FLAGS_k5 <<
+      "\n\tk6:\t\t\t" << FLAGS_k6 <<
+      std::endl;
 }
 
 void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr, 
