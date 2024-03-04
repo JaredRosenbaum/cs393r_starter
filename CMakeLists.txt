@@ -72,3 +72,13 @@ TARGET_LINK_LIBRARIES(cimg_example shared_library ${libs} X11)
 ADD_EXECUTABLE(resampling_test
                src/particle_filter/resampling_test.cpp)
 TARGET_LINK_LIBRARIES(resampling_test shared_library ${libs})
+
+# IF (BUILD_CUDA_EX)
+MESSAGE("Building CUDA example")
+enable_language(CUDA)
+
+ADD_LIBRARY(cuda_ex_lib src/examples/cuda_ranges_to_cloud_lib.cu)
+set_target_properties(cuda_ex_lib PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+ADD_EXECUTABLE(cuda_ex src/examples/cuda_ranges_to_cloud_main.cc)
+TARGET_LINK_LIBRARIES(cuda_ex shared_library ${libs} cuda_ex_lib roscpp_serialization)
+# ENDIF()
