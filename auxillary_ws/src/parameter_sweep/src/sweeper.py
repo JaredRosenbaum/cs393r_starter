@@ -25,7 +25,7 @@ class Trial ():
         self.k6 = k6
     
     def __str__(self):
-        return f'Bags:\t\t{self.bags}\nRuns:\t\t{self.runs}\nResampling it:\t{self.resampling_iteration_threshold}\nSigma_s:\t{self.sigma_s}\nGamma:\t\t{self.gamma}\nd_long:\t\t{self.d_long}\nd_short:\t\t{self.d_short}\nk2:\t\t{self.k2}\nk3:\t\t{self.k3}\nk5:\t\t{self.k5}\nk6:\t\t{self.k6}'
+        return f'Bags:\t\t{self.bags}\nRuns:\t\t{self.runs}\nResampling it:\t{self.resampling_iteration_threshold}\nSigma_s:\t{self.sigma_s}\nGamma:\t\t{self.gamma}\nd_long:\t\t{self.d_long}\nd_short:\t{self.d_short}\nk2:\t\t{self.k2}\nk3:\t\t{self.k3}\nk5:\t\t{self.k5}\nk6:\t\t{self.k6}'
 
 class Sweeper():
     
@@ -63,16 +63,16 @@ class Sweeper():
         sigmas = [0.3, 0.5, 0.8]
         gammas = [0.05, 0.1, 0.5]
         
-        k2s = [0.1, 0.3, 0.5]
-        k3s = [0.1, 0.3, 0.5]
-        k5s = [0.1, 0.3, 0.5]
-        k6s = [0.1, 0.3, 0.5]
+        k2s = [0.15, 0.35, 0.6]
+        k3s = [0.15, 0.35, 0.6]
+        k5s = [0.15, 0.35, 0.6]
+        k6s = [0.15, 0.35, 0.6]
         
         n_particles_star = 35
         resampling_iteration_star = 15
         
         sigmas = [0.5, 0.75, 1.0]
-        gammas = [0.1, 0.3, 0.5]
+        gammas = [0.5, 0.75, 1.0]
         d_longs = [0.5, 1.0, 1.5]
         d_shorts = [0.1, 0.25, 0.5]
         
@@ -123,7 +123,9 @@ class Sweeper():
         #                     n_plays,
         #                     15,
         #                     0.5,
-        #                     0.1,
+        #                     0.3,
+        #                     1.0,
+        #                     0.5,
         #                     k2,
         #                     k3,
         #                     k5,
