@@ -428,7 +428,6 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
 
     // don't consider points farther from the most likely particle than the set distance
     if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
-    if (std::abs(particles_[i].angle - most_likely_angle) < 0.5) {continue;}
 
     // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
     total_considered_particles++;
