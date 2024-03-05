@@ -85,8 +85,8 @@ using math_util::AngleDiff;
 // . observation model parameters
 #define d_long 1.0d // 
 #define d_short 0.5d // 
-#define sigma_s 0.75d // std deviation of the LiDAR sensor measurements (0.03d)
-#define gamma 0.75d // scalar on the weight updates for each point in the scan (0.1d)
+#define sigma_s 0.75d // std deviation of the LiDAR sensor measurements
+#define gamma 0.75d // scalar on the weight updates for each point in the scan
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion");
@@ -122,9 +122,7 @@ void ParticleFilter::GetPredictedPointCloud(const Vector2f& loc,
                                             float angle_max,
                                             vector<Vector2f>* scan_ptr) {
   vector<Vector2f>& scan = *scan_ptr;
-  //*Look at GetPredictedScan in vector_map.cc
   // The returned values must be set using the 'scan' variable:
-  // const int laser_downsampling_factor {5};
   scan.resize(num_ranges / laser_downsampling_factor);
 
   // Calculate lidar location (0.2m in front of base_link)
@@ -177,7 +175,7 @@ void ParticleFilter::Update(const vector<float>& ranges,
   // Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
 
   // getting the expected cloud at the particle pose
-  std::vector<Eigen::Vector2f> predicted_scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
+  std::vector<Eigen::Vector2f> predicted_scan; // This scan will be altered by GetPredictedPointCloud to be compared to ranges
   Particle particle = *p_ptr;
   GetPredictedPointCloud(particle.loc, particle.angle, ranges.size(), range_min, range_max, angle_min, angle_max, &predicted_scan);
 
@@ -236,7 +234,6 @@ void ParticleFilter::Resample() {
   }
 
   // create vector for new particles
-  // const int n_particles {50};
   std::vector<particle_filter::Particle> resampled_particles;
   resampled_particles.reserve(n_particles);
 
@@ -273,8 +270,7 @@ void ParticleFilter::Resample() {
     std::cerr << resampled_particles.size() << " particles were resampled instead of " << n_particles << "! Investigate this." << std::endl;
   }
 
-  // the slides say we should have particles of equal weight after resampling
-  // - I'm going to disable this for now so we can use the weights in the GetLocation function, but maybe this is incorrect
+  // reset particle weights after resampling
   double resampled_weight {log(1.d / n_particles)};
   for (auto &particle : resampled_particles) {
     particle.weight = resampled_weight;
@@ -348,7 +344,7 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
         // float y_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
         // float rotation_noise = rng_.Gaussian(0.0, FLAGS_k2 * translation_diff.norm() + FLAGS_k3 * rotation_diff);
 
-        // . trying to use ellipse model
+        // Sample noise from a Gaussian distribution for a more complete ellipsoid model
         auto translation_norm {translation_diff.norm()};
         auto major_axis_noise {rng_.Gaussian(0.0, FLAGS_k5 * translation_norm + FLAGS_k4 * rotation_diff)};
         auto minor_axis_noise {rng_.Gaussian(0.0, FLAGS_k6 * translation_norm + FLAGS_k4 * rotation_diff)};
@@ -387,7 +383,6 @@ void ParticleFilter::Initialize(const string& map_file,
 
   // Clear and Initialize particles
   particles_.clear();
-  // for (unsigned i = 0; i < FLAGS_num_particles; i++) {
   for (int i = 0; i < n_particles; i++) {
     // Generate random number for error
     float error_x = rng_.UniformRandom(-0.25, 0.25);  
@@ -412,54 +407,9 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   Vector2f& loc = *loc_ptr;
   float& angle = *angle_ptr;
 
+  // - for just returning the most likely particle
   // loc = top_particle_->loc;
   // angle = top_particle_->angle;
-
-  // get the most likely particle (just looking at the weights)
-  // int most_likely_particle_index {0};
-  // double most_likely_particle_weight {particles_[0].weight};
-  // for (std::size_t i = 1; i < particles_.size(); i++) {
-  //   if (particles_[i].weight > most_likely_particle_weight) {
-  //     most_likely_particle_index = static_cast<int>(i);
-  //     most_likely_particle_weight = particles_[i].weight;
-  //   }
-  // }
-
-  // - for just returning the most likely particle
-  // loc = particles_[most_likely_particle_index].loc;
-  // angle = particles_[most_likely_particle_index].angle;
-
-  // - taking spatial average around most likely particle
-  // double radial_inclusion_distance {0.25}; // m
-  // auto most_likely_location {particles_[most_likely_particle_index].loc};
-
-  // auto location_estimate {particles_[most_likely_particle_index].loc};
-  // auto angle_estimate {particles_[most_likely_particle_index].angle};
-  // int total_considered_particles {1};
-
-  // double radial_inclusion_distance_sqrd {pow(radial_inclusion_distance, 2)};
-  // for (std::size_t i = 0; i < particles_.size(); i++) {
-    
-  //   // calculate the distance from the most likely location to the particle
-  //   double radial_distance_sqrd {pow(particles_[i].loc.x() - most_likely_location.x(), 2) + pow(particles_[i].loc.y() - most_likely_location.y(), 2)};
-
-  //   // don't consider points farther from the most likely particle than the set distance
-  //   if (radial_distance_sqrd > radial_inclusion_distance_sqrd) {continue;}
-
-  //   // accumulate the point for calculations (probably start with a simple average, then maybe can consider a probability- or distance-weighted average depending on the results)
-  //   total_considered_particles++;
-  //   location_estimate.x() += particles_[i].loc.x();
-  //   location_estimate.y() += particles_[i].loc.y();
-  //   angle_estimate += particles_[i].angle;
-  // }
-
-  // // divide to get averages
-  // location_estimate.x() /= total_considered_particles;
-  // location_estimate.y() /= total_considered_particles;
-  // angle_estimate /= total_considered_particles;
-
-  // loc = location_estimate;
-  // angle = angle_estimate;
 
   // - taking weighted average around most likely particle
   double radial_inclusion_distance {5.0}; // m
