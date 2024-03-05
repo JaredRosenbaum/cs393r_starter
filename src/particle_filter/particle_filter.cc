@@ -96,7 +96,7 @@ DEFINE_double(k4, 0.1, "Error in translation from rotation motion");
 DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis");
 DEFINE_double(k6, 0.3, "Error in translation from translation motion along minor axis");
 
-// . pi 🥧
+// . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
 
 namespace particle_filter {
@@ -172,6 +172,8 @@ void ParticleFilter::Update(const vector<float>& ranges,
                             float angle_min,
                             float angle_max,
                             Particle* p_ptr) {
+  // Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
+
   // getting the expected cloud at the particle pose
   std::vector<Eigen::Vector2f> predicted_scan; // This scan will be altered by GetPredictedPointCloud to be compared to ranges
   Particle particle = *p_ptr;
@@ -198,6 +200,10 @@ void ParticleFilter::Update(const vector<float>& ranges,
     // getting the range (magnitude of distance) between the point and the LiDAR sensor's location
     double predicted_scan_range {(predicted_scan[i] - lidar_location).norm()}; 
 
+    // // . this is the simple observation likelihood function
+    // log_weight += (-1 * pow((downsampled_ranges[i] - predicted_scan_range), 2) / (pow(sigma_s, 2)));
+
+    // . this is a more complete observation likelihood function
     // ranges less than the minimum range or greater than the maximum range are excluded; adding some tolerance so 9.999 and 0.201 don't ruin us
     // if (downsampled_ranges[i] < range_min || downsampled_ranges[i] > range_max){
     float tolerance {0.05};
@@ -216,7 +222,7 @@ void ParticleFilter::Update(const vector<float>& ranges,
       log_weight += (-1 * pow((downsampled_ranges[i] - predicted_scan_range), 2) / (pow(sigma_s, 2)));
     }
   }
-  // assigning weight with some scalar gamma to represent confidence
+  // assigning weight with some scalar gamma
   p_ptr->weight = gamma * log_weight;
 }
 
@@ -439,6 +445,8 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
 
   loc = location_estimate;
   angle = angle_estimate;
+
+  // std::cout << "Estimated location: " << loc.transpose() << std::endl;
 }
 
 }  // namespace particle_filter
