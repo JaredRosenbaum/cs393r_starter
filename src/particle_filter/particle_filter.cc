@@ -78,23 +78,23 @@ using math_util::AngleDiff;
 */
 
 // . efficiency~accuracy tradeoff parameters
-#define n_particles 100 // number of particles instantiated and resampled by filter
+#define n_particles 35 // number of particles instantiated and resampled by filter
 #define laser_downsampling_factor 10 // downsampled laser scan will be 1/N its original size; used to improve computational efficiency
-#define resampling_iteration_threshold 10 // resampling only occurs every n iterations of particle weight updates
+#define resampling_iteration_threshold 15// resampling only occurs every n iterations of particle weight updates
 
 // . observation model parameters
-#define d_long 0.5d // 
+#define d_long 1.0d // 
 #define d_short 0.5d // 
-#define sigma_s 0.3d // std deviation of the LiDAR sensor measurements (0.03d)
-#define gamma 0.05d // scalar on the weight updates for each point in the scan (0.1d)
+#define sigma_s 0.75d // std deviation of the LiDAR sensor measurements (0.03d)
+#define gamma 0.75d // scalar on the weight updates for each point in the scan (0.1d)
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion");
-DEFINE_double(k2, 0.85, "Error in rotation from translation motion");
-DEFINE_double(k3, 0.8, "Error in rotation from rotation motion");
-DEFINE_double(k4, 0.5, "Error in translation from rotation motion");
+DEFINE_double(k2, 0.3, "Error in rotation from translation motion");
+DEFINE_double(k3, 0.1, "Error in rotation from rotation motion");
+DEFINE_double(k4, 0.1, "Error in translation from rotation motion");
 DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis");
-DEFINE_double(k6, 0.75, "Error in translation from translation motion along minor axis");
+DEFINE_double(k6, 0.3, "Error in translation from translation motion along minor axis");
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
@@ -174,9 +174,7 @@ void ParticleFilter::Update(const vector<float>& ranges,
                             float angle_min,
                             float angle_max,
                             Particle* p_ptr) {
-  //TODO Multiply previous weight?
-  //TODO Normalize to wmax
-  //TODO Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
+  // Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
 
   // getting the expected cloud at the particle pose
   std::vector<Eigen::Vector2f> predicted_scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
@@ -277,10 +275,10 @@ void ParticleFilter::Resample() {
 
   // the slides say we should have particles of equal weight after resampling
   // - I'm going to disable this for now so we can use the weights in the GetLocation function, but maybe this is incorrect
-  // double resampled_weight {log(1.d / n_particles)};
-  // for (auto &particle : resampled_particles) {
-  //   particle.weight = resampled_weight;
-  // }
+  double resampled_weight {log(1.d / n_particles)};
+  for (auto &particle : resampled_particles) {
+    particle.weight = resampled_weight;
+  }
 
   // assign the resampled particles
   particles_ = resampled_particles;
@@ -298,7 +296,7 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
 
   // update the weights of each particle
   Particle *top_particle = new Particle;
-  double max_particle_weight {log(1e-06d)};
+  double max_particle_weight {-100000};
   for (auto &particle : particles_) {
     Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
     if (particle.weight > max_particle_weight) {
@@ -414,6 +412,9 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   Vector2f& loc = *loc_ptr;
   float& angle = *angle_ptr;
 
+  // loc = top_particle_->loc;
+  // angle = top_particle_->angle;
+
   // get the most likely particle (just looking at the weights)
   // int most_likely_particle_index {0};
   // double most_likely_particle_weight {particles_[0].weight};
@@ -461,7 +462,7 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   // angle = angle_estimate;
 
   // - taking weighted average around most likely particle
-  double radial_inclusion_distance {0.25}; // m
+  double radial_inclusion_distance {5.0}; // m
   auto most_likely_location {top_particle_->loc};
 
   auto location_estimate {top_particle_->loc};
@@ -486,8 +487,6 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
     angle_estimate += weight * particles_[i].angle;
     sum_of_weights += weight;
   }
-
-  // std::cout << location_estimate.transpose() << ", " << angle_estimate << ", " << sum_of_weights << std::endl;
 
   // divide to get averages
   location_estimate.x() /= sum_of_weights;
