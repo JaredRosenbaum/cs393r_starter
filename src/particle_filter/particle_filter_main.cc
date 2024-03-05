@@ -163,7 +163,6 @@ void PublishVisualization() {
   vis_msg_.header.stamp = ros::Time::now();
   ClearVisualizationMsg(vis_msg_);
 
-  // TODO Temporary comment
   PublishParticles();
   PublishPredictedScan();
   PublishTrajectory();
@@ -182,7 +181,6 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
       msg.range_max,
       msg.angle_min,
       msg.angle_max);
-  // TODO Temporary Comment
   PublishVisualization();
 }
 
@@ -250,9 +248,7 @@ void ProcessLive(ros::NodeHandle* n) {
   while (ros::ok() && run_) {
     ros::spinOnce();
     PublishVisualization();
-    // TODO Temporary comment
     Sleep(0.01);
-    // Sleep(1.0);
   }
 }
 

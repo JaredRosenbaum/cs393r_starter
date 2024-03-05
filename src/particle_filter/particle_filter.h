@@ -103,8 +103,9 @@ class ParticleFilter {
   float prev_odom_angle_;
   bool odom_initialized_;
 
-  int resampling_iteration_counter_;
-  bool new_odometry_flag_;
+  bool new_odometry_flag_;    // Flag to indicate odmometry change (robot movement)
+  int resampling_iteration_counter_;    // count the number of times Resample() has been called
+  Particle *top_particle_ = new Particle;  // Particle with max weight
 };
 }  // namespace slam
 
