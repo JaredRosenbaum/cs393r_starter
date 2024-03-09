@@ -304,12 +304,13 @@ void ParticleFilter::Resample() {
     std::cerr << resampled_particles.size() << " particles were resampled instead of " << FLAGS_n_particles << "! Investigate this." << std::endl;
   }
 
+  // !!!remember this is enabled!!!
   // the slides say we should have particles of equal weight after resampling
   // - I'm going to disable this for now so we can use the weights in the GetLocation function, but maybe this is incorrect
-  // double resampled_weight {log(1.d / n_particles)};
-  // for (auto &particle : resampled_particles) {
-  //   particle.weight = resampled_weight;
-  // }
+  double resampled_weight {log(1.d / FLAGS_n_particles)};
+  for (auto &particle : resampled_particles) {
+    particle.weight = resampled_weight;
+  }
 
   // assign the resampled particles
   particles_ = resampled_particles;
