@@ -92,17 +92,17 @@ DEFINE_double(resampling_iteration_threshold, 15, "Iterations between downsampli
 // #define sigma_s 0.3d // std deviation of the LiDAR sensor measurements (0.03d)
 // #define gamma 0.05d // scalar on the weight updates for each point in the scan (0.1d)
 
-DEFINE_double(d_long, 0.5, "d_long"); // 0.5
-DEFINE_double(d_short, 0.25, "d_short"); // 0.5
+DEFINE_double(d_long, 1.0, "d_long"); // 0.5
+DEFINE_double(d_short, 0.5, "d_short"); // 0.5
 DEFINE_double(sigma_s, 0.75, "sigma_s"); // 0.3
-DEFINE_double(gamma, 0.5, "gamma");
+DEFINE_double(gamma, 0.75, "gamma");
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.3, "Error in translation from translation motion"); // (0.5)
 DEFINE_double(k2, 0.5, "Error in rotation from translation motion"); // (0.5)
 DEFINE_double(k3, 0.1, "Error in rotation from rotation motion"); // (0.8)
 DEFINE_double(k4, 0.1, "Error in translation from rotation motion"); // (0.5)
-DEFINE_double(k5, 0.5, "Error in translation from translation motion along major axis"); // (0.3)
+DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis"); // (0.3)
 DEFINE_double(k6, 0.3, "Error in translation from translation motion along minor axis"); // (0.5)
 
 // . fixed
