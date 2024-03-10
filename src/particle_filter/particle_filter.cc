@@ -102,8 +102,8 @@ DEFINE_double(k1, 0.3, "Error in translation from translation motion"); // (0.5)
 DEFINE_double(k2, 0.5, "Error in rotation from translation motion"); // (0.5)
 DEFINE_double(k3, 0.1, "Error in rotation from rotation motion"); // (0.8)
 DEFINE_double(k4, 0.1, "Error in translation from rotation motion"); // (0.5)
-DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis"); // (0.3)
-DEFINE_double(k6, 0.3, "Error in translation from translation motion along minor axis"); // (0.5)
+DEFINE_double(k5, 0.5, "Error in translation from translation motion along major axis"); // (0.3)
+DEFINE_double(k6, 0.5, "Error in translation from translation motion along minor axis"); // (0.5)
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
@@ -184,18 +184,6 @@ void ParticleFilter::Update(const vector<float>& ranges,
                             float angle_min,
                             float angle_max,
                             Particle* p_ptr) {
-  //TODO Multiply previous weight?
-  //TODO Normalize to wmax
-  //TODO Lecture 08 slide 44, Lecture 7 slide 32, log likelihoods and infitesimally small numbers
-
-  //! D_long and D_short to be tuned!!! 
-  //! Gamma is tuned to reduce overconfidence
-  //TODO All of these must be tuned. 
-  // float d_long = 1.0;
-  // float d_short = 0.5;
-  // float sigma_s = 0.03; //Intuition was correct, look for lidar spec sheet!! 
-  // float gamma = 0.1; //Note: Can range from 1/1081 to 1 (or is it 1/#particles?)
-  
   // getting the expected cloud at the particle pose
   std::vector<Eigen::Vector2f> predicted_scan; //This scan will be altered by GetPredictedPointCloud to be compared to ranges
   Particle particle = *p_ptr;
@@ -256,7 +244,6 @@ void ParticleFilter::Resample() {
   }
 
   // create vector for new particles
-  // const int n_particles {50};
   std::vector<particle_filter::Particle> resampled_particles;
   resampled_particles.reserve(FLAGS_n_particles);
 
@@ -304,9 +291,7 @@ void ParticleFilter::Resample() {
     std::cerr << resampled_particles.size() << " particles were resampled instead of " << FLAGS_n_particles << "! Investigate this." << std::endl;
   }
 
-  // !!!remember this is enabled!!!
   // the slides say we should have particles of equal weight after resampling
-  // - I'm going to disable this for now so we can use the weights in the GetLocation function, but maybe this is incorrect
   double resampled_weight {log(1.d / FLAGS_n_particles)};
   for (auto &particle : resampled_particles) {
     particle.weight = resampled_weight;
@@ -326,13 +311,9 @@ void ParticleFilter::ObserveLaser(const vector<float>& ranges,
     return;
   }
 
-  // // update the weights of each particle
-  // for (auto &particle : particles_) {
-  //   Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
-  // }
-
   // update the weights of each particle
-  double max_weight {log(1e-06d)};
+  // !!! double max_weight {log(1e-06d)};
+  double max_weight {-100000};
   for (auto &particle : particles_) {
     Update(ranges, range_min, range_max, angle_min, angle_max, &particle);
     if (particle.weight > max_weight) {
@@ -383,7 +364,7 @@ void ParticleFilter::Predict(const Vector2f& odom_loc,
         // float y_noise = rng_.Gaussian(0.0,  FLAGS_k1 * translation_diff.norm() + FLAGS_k4 * rotation_diff);
         // float rotation_noise = rng_.Gaussian(0.0, FLAGS_k2 * translation_diff.norm() + FLAGS_k3 * rotation_diff);
 
-        // . trying to use ellipse model
+        // . Sample noise from a Gaussian distribution using a more complete ellisoidal model
         auto translation_norm {translation_diff.norm()};
         auto major_axis_noise {rng_.Gaussian(0.0, FLAGS_k5 * translation_norm + FLAGS_k4 * rotation_diff)};
         auto minor_axis_noise {rng_.Gaussian(0.0, FLAGS_k6 * translation_norm + FLAGS_k4 * rotation_diff)};
@@ -441,12 +422,7 @@ void ParticleFilter::Initialize(const string& map_file,
     // Add particle
     particles_.push_back(p);
   }
-  // Particle perf = {
-  //     Eigen::Vector2f(loc[0], loc[1]),
-  //     (float)(angle),
-  //     1 / FLAGS_num_particles};
-  // particles_.push_back(perf);
-  // particles_.push_back(perf);
+
   std::cout << particles_.size() << " particles initialized" << std::endl;
   std::cout << "Current configuration:" <<
       "\n\tn_particles:\t\t" << FLAGS_n_particles <<
@@ -485,7 +461,8 @@ void ParticleFilter::GetLocation(Eigen::Vector2f* loc_ptr,
   // angle = particles_[most_likely_particle_index].angle;
 
   // - taking spatial average around most likely particle
-  double radial_inclusion_distance {0.075}; // m
+  // !!! double radial_inclusion_distance {0.075}; // m
+  double radial_inclusion_distance {5.0}; // m
   auto most_likely_location {particles_[most_likely_particle_index].loc};
 
   auto location_estimate {particles_[most_likely_particle_index].loc};
