@@ -90,7 +90,7 @@ using math_util::AngleDiff;
 
 // . motion model noise parameters
 DEFINE_double(k1, 0.5, "Error in translation from translation motion");
-DEFINE_double(k2, 0.3, "Error in rotation from translation motion");
+DEFINE_double(k2, 0.5, "Error in rotation from translation motion");
 DEFINE_double(k3, 0.1, "Error in rotation from rotation motion");
 DEFINE_double(k4, 0.1, "Error in translation from rotation motion");
 DEFINE_double(k5, 0.5, "Error in translation from translation motion along major axis");
