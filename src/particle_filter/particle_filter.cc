@@ -93,8 +93,8 @@ DEFINE_double(k1, 0.5, "Error in translation from translation motion");
 DEFINE_double(k2, 0.3, "Error in rotation from translation motion");
 DEFINE_double(k3, 0.1, "Error in rotation from rotation motion");
 DEFINE_double(k4, 0.1, "Error in translation from rotation motion");
-DEFINE_double(k5, 0.3, "Error in translation from translation motion along major axis");
-DEFINE_double(k6, 0.3, "Error in translation from translation motion along minor axis");
+DEFINE_double(k5, 0.5, "Error in translation from translation motion along major axis");
+DEFINE_double(k6, 0.5, "Error in translation from translation motion along minor axis");
 
 // . fixed
 DEFINE_double(pi, 3.1415926, "Pi");
