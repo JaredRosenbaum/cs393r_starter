@@ -100,6 +100,16 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
+  // Update navigation goal
+  nav_goal_loc_ = loc;
+  nav_goal_angle_ = angle;
+
+  // Calculate global path from planner
+  // TODO Is the angle necessary for the global path?
+  global_planner_->SetRobotPose(robot_loc_, robot_angle_);
+  global_planner_->CalculatePath(nav_goal_loc_, nav_goal_angle_);
+
+  nav_complete_ = false;
 }
 
 void Navigation::UpdateLocation(const Eigen::Vector2f& loc, float angle) {

@@ -26,6 +26,7 @@
 // +
 #include "vehicles.hpp"
 #include "controllers.h"
+#include "global_planner.h"
 // +
 
 #ifndef NAVIGATION_H
@@ -112,6 +113,9 @@ class Navigation {
   float nav_goal_angle_;
   // Map of the environment.
   vector_map::VectorMap map_;
+
+  // Global planner object
+  global_planner::Global_Planner *global_planner_;
 
   // +
   // Car object
