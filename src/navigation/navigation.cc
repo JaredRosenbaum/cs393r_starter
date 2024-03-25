@@ -99,7 +99,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   // +
 
   // instantiate a global planner
-  global_planner_ = new global_planner::Global_Planner(map_);
+  global_planner_ = new global_planner::Global_Planner(map_, n);
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
@@ -107,13 +107,16 @@ void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
   nav_goal_loc_ = loc;
   nav_goal_angle_ = angle;
 
+  std::cout << "[Navigation] Calculating global path from (" << robot_loc_[0] << ", " << robot_loc_[1] << ") to (" << loc[0] << ", " << loc[1] << ")" << std::endl;
+
   // Clear previous global path
   global_path_found_ = false;
   global_planner_->ClearPath();
 
   // Calculate global path from planner
-  global_planner_->SetRobotPose(robot_loc_);
-  global_path_found_ = global_planner_->CalculatePath(nav_goal_loc_);
+  global_planner_->SetRobotLocation(robot_loc_);
+  global_planner_->SetGoalLocation(nav_goal_loc_);
+  global_path_found_ = global_planner_->CalculatePath(1000);
 
   nav_complete_ = false;
 }
@@ -151,9 +154,13 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
 
+  // TODO Remove
+  return;
+
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
+
 
   // Visualize pointcloud
   // for (int i = 0; i < (int)point_cloud_.size(); i++) {
