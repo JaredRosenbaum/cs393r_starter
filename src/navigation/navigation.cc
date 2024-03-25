@@ -97,6 +97,9 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
 
   latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
   // +
+
+  // instantiate a global planner
+  global_planner_ = new global_planner::Global_Planner(map_);
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
@@ -104,10 +107,13 @@ void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
   nav_goal_loc_ = loc;
   nav_goal_angle_ = angle;
 
+  // Clear previous global path
+  global_path_found_ = false;
+  global_planner_->ClearPath();
+
   // Calculate global path from planner
-  // TODO Is the angle necessary for the global path?
-  global_planner_->SetRobotPose(robot_loc_, robot_angle_);
-  global_planner_->CalculatePath(nav_goal_loc_, nav_goal_angle_);
+  global_planner_->SetRobotPose(robot_loc_);
+  global_path_found_ = global_planner_->CalculatePath(nav_goal_loc_);
 
   nav_complete_ = false;
 }

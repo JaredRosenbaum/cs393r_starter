@@ -12,7 +12,8 @@
 #include <map>
 #include <eigen3/Eigen/Dense>
 
-#include "shared/math/geometry.h"
+#include "vector_map/vector_map.h"
+#include "shared/math/line2d.h"
 
 using geometry::line2f;
 
@@ -23,23 +24,26 @@ struct Node {
   unsigned int parent;
   Eigen::Vector2f loc;
   float cost;
-  std::vector<Node> *neighbors;
 };
 
 class Global_Planner {
   public:
-    Global_Planner();
+    Global_Planner(vector_map::VectorMap map);
 
-    void SetRobotPose(Eigen::Vector2f loc, float angle);
+    void ClearPath();
 
-    void CalculatePath(Eigen::Vector2f loc, float angle);
+    void SetRobotPose(Eigen::Vector2f loc);
+
+    bool CalculatePath(Eigen::Vector2f loc);
 
   private:
     Eigen::Vector2f SamplePoint();
 
-    Node Global_Planner::FindClosestNode(Eigen::Vector2f loc);
+    Node FindClosestNode(Eigen::Vector2f loc);
 
     Node CreateChildNode(Node parent, Eigen::Vector2f loc);
+
+    void OptimizePathToNode(Node* node);
 
     // Map of the environment.
     vector_map::VectorMap map_;
@@ -50,11 +54,11 @@ class Global_Planner {
     float goal_threshold_;     // Set distance from goal for success
     bool goal_reached_;        // Goal reached flag
 
-    float m_ = 3;
-
     float graph_resolution_;    // minimum distance between nodes
-    unsigned int max_nodes_;   // Maximum number of nodes to search
+    unsigned int max_nodes_;    // Maximum number of nodes to search
     std::map<unsigned int, Node> node_map_;   // Map of nodes
+
+    float optimization_radius_; // radius to search within for optimized path
 };
 
 } // namespace global_planner

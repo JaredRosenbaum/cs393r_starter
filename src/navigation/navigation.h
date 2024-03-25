@@ -114,9 +114,6 @@ class Navigation {
   // Map of the environment.
   vector_map::VectorMap map_;
 
-  // Global planner object
-  global_planner::Global_Planner *global_planner_;
-
   // +
   // Car object
   vehicles::UT_Automata *car_;
@@ -125,6 +122,10 @@ class Navigation {
   double last_msg_timestamp_;
   controllers::latency_compensation::Controller *latency_controller_;
   // +
+
+  // Global planner object
+  global_planner::Global_Planner *global_planner_;
+  bool global_path_found_;
 };
 
 }  // namespace navigation
