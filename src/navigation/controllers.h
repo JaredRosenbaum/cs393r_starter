@@ -15,11 +15,15 @@
 #include <chrono>
 #include "eigen3/Eigen/Dense"
 #include "ros/ros.h"
+#include "shared/math/math_util.h"
 
 #include "vehicles.hpp"
 #include "functions.h"
 
 using Eigen::Vector2f;
+using math_util::Sq;
+using math_util::Sign;
+using math_util::Pow;
 
 namespace controllers {
 
@@ -29,9 +33,34 @@ struct PathCandidate {
   float score;
   float clearance;
   float goal_distance;
+  float deviance;
   PathCandidate(){}
   PathCandidate(float s) : score(s) {}
   PathCandidate(float c, float fpl) : curvature(c), free_path_length(fpl) {};
+  bool operator < (const PathCandidate &pc) const
+  {
+    return (score > pc.score);
+  }
+  PathCandidate(const std::vector<PathCandidate> &paths) {
+    curvature = 0;
+    free_path_length = 0;
+    clearance = 0;
+    goal_distance = 0;
+    deviance = 0;
+    score = 0;
+    for (const auto &path : paths) {
+      curvature += path.curvature;
+      free_path_length += path.free_path_length;
+      clearance += path.clearance;
+      goal_distance += path.goal_distance;
+      deviance += path.deviance;
+    }
+    curvature /= static_cast<int>(paths.size());
+    free_path_length /= static_cast<int>(paths.size());
+    clearance /= static_cast<int>(paths.size());
+    goal_distance /= static_cast<int>(paths.size());
+    deviance /= static_cast<int>(paths.size());
+  };
 }; // struct PathCandidate
 
 struct State2D {
@@ -54,15 +83,18 @@ class Controller {
 
     float calculateControlSpeed(float current_speed, const float distance_left);
 
-    float calculateClearance(const std::vector<Vector2f>& point_cloud, const float curvature, const float free_path_length);
+    // float calculateClearance(const std::vector<Vector2f>& point_cloud, const float curvature, const float free_path_length);
+    void calculateClearance(const std::vector<Vector2f>& point_cloud, PathCandidate &path);
+
+    void computePathOption(PathCandidate &path_option, float curvature, const std::vector<Eigen::Vector2f>& point_cloud);
 
     float calculateDistanceToGoal(const float curvature);
 
-    PathCandidate evaluatePaths(const std::vector<Vector2f>& point_cloud); 
+    PathCandidate evaluatePaths(const std::vector<Vector2f>& point_cloud, std::vector<PathCandidate> &candidates); 
 
     float calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature);
 
-    Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed);
+    Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<PathCandidate> &path_candidates, PathCandidate &best_path);
 
     float getControlInterval();
 
@@ -72,6 +104,8 @@ class Controller {
     float margin_;              // Margin of error around car
     float max_clearance_;       // Max clearance value assigned to paths without observed obstacles
     float curvature_sampling_interval_; // Dicretization of curvature paths
+
+    float previous_curvature_; // used to pick paths more similar to previously generated ones
 };
 
 } // namespace time_optimal_1D
@@ -94,7 +128,7 @@ class Controller {
     Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval, float latency);
     ~Controller();
 
-    time_optimal_1D::Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp);
+    time_optimal_1D::Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<PathCandidate> &path_candidates, PathCandidate &best_path);
 
     void recordCommand(const time_optimal_1D::Command command);
   private:
@@ -110,12 +144,11 @@ class Controller {
 
     float calculateFreePathLength(const std::vector<Vector2f>& point_cloud, const float curvature, const double last_data_timestamp);
 
-
     float latency_;
     std::deque<CommandStamped> command_history_;
     time_optimal_1D::Controller *toc_;
 
-}; // class LatencyController
+}; // class Controller
 
 } // namespace latency_compensation
 

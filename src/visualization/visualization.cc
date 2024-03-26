@@ -153,4 +153,25 @@ void DrawPathOption(const float curvature,
     }
   }
 }
+
+void DrawRectangle(const Vector2f& loc,
+                   float width,
+                   float height,
+                   float angle,
+                   uint32_t color,
+                   VisualizationMsg& msg) {
+  Vector2f p0(-width / 2, -height / 2);
+  Vector2f p1(width / 2, -height / 2);
+  Vector2f p2(width / 2, height / 2);
+  Vector2f p3(-width / 2, height / 2);
+  p0 = Rotation2Df(angle) * p0 + loc;
+  p1 = Rotation2Df(angle) * p1 + loc;
+  p2 = Rotation2Df(angle) * p2 + loc;
+  p3 = Rotation2Df(angle) * p3 + loc;
+  DrawLine(p0, p1, color, msg);
+  DrawLine(p1, p2, color, msg);
+  DrawLine(p2, p3, color, msg);
+  DrawLine(p3, p0, color, msg);
+}
+
 }  // namespace visualization

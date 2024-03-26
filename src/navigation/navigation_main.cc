@@ -169,6 +169,7 @@ int main(int argc, char** argv) {
       n.subscribe("/move_base_simple/goal", 1, &GoToCallback);
 
   RateLoop loop(20.0);
+  // RateLoop loop(5.0);
   while (run_ && ros::ok()) {
     ros::spinOnce();
     navigation_->Run();

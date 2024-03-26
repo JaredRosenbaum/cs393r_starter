@@ -55,7 +55,8 @@ ROSBUILD_ADD_EXECUTABLE(navigation
                         src/navigation/navigation_main.cc
                         src/navigation/navigation.cc
                         src/navigation/controllers.cpp
-                        src/navigation/functions.cpp)
+                        src/navigation/functions.cpp
+                        src/navigation/path_options.cc)
 TARGET_LINK_LIBRARIES(navigation shared_library ${libs})
 
 ADD_EXECUTABLE(eigen_tutorial
