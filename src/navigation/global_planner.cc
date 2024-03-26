@@ -16,7 +16,7 @@ Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle*
   goal_threshold_(0.5),
   goal_reached_(false),
   graph_resolution_(0.3),
-  sample_buffer_(3.0),
+  sample_buffer_(5.0),
   optimization_radius_(1.0) {
     node_map_.clear();
     viz_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
@@ -28,6 +28,10 @@ void Global_Planner::ClearPath(void) {
   goal_reached_ = false;
   node_map_.clear();
   path_.clear();
+
+  // Restart visualization
+  visualization::ClearVisualizationMsg(viz_msg_);
+  viz_pub_.publish(viz_msg_);
 }
 
 void Global_Planner::SetRobotLocation(const Eigen::Vector2f loc) {
@@ -54,10 +58,6 @@ void Global_Planner::SetGoalLocation(const Eigen::Vector2f loc) {
 bool Global_Planner::CalculatePath(unsigned int max_iterations) {
   std::cout << "[Global_Planner] Calculating path... " << std::endl;
 
-  // Restart visualization
-  visualization::ClearVisualizationMsg(viz_msg_);
-  viz_pub_.publish(viz_msg_);
-
   // Draw goal
   visualization::DrawCross(goal_, 0.1, 0xb30b0b, viz_msg_);
 
@@ -66,19 +66,29 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
   while (counter_ < max_iterations && !goal_reached_) {
     // Sample a random point in the state space
     Eigen::Vector2f sampled_loc = SamplePoint(node_map_.at(0).loc, goal_);
-    visualization::DrawCross(sampled_loc, 0.1, 0x0d13bf, viz_msg_);
 
-    // Find closest node to sampled point
+    // Find closest node to sampled point, if possible
     Node closest_node = FindClosestNode(sampled_loc);
 
     // Project closest node in the direction of the sampled point and create a new node
     Node new_node = CreateChildNode(closest_node, sampled_loc);
-    visualization::DrawCross(new_node.loc, 0.1, 0x1ac211, viz_msg_);
-    visualization::DrawLine(closest_node.loc, new_node.loc, 0x1ac211, viz_msg_);
 
-    // If possible, optimize path and add node to the node map
+    // Check for any collisions with the map
+    bool map_collision = CheckMapCollision(new_node);
+    if (map_collision) {
+      continue;   // obstacle found, retry!
+    }
+
+    // If possible, optimize path
     // OptimizePathToNode(&new_node);
+
+    // Finally, add node to the node_map
     node_map_.insert({new_node.id, new_node});
+
+    // visualization::DrawCross(sampled_loc, 0.05, 0x0d13bf, viz_msg_);
+    // visualization::DrawCross(new_node.loc, 0.1, 0x1ac211, viz_msg_);
+    visualization::DrawPoint(new_node.loc, 0, viz_msg_);
+    visualization::DrawLine(closest_node.loc, new_node.loc, 0x1ac211, viz_msg_);
 
     viz_msg_.header.stamp = ros::Time::now();
     viz_pub_.publish(viz_msg_);
@@ -89,13 +99,16 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
       std::cout << "[Global_Planner] Reached goal after " << counter_ << " iterations" << std::endl;
       goal_reached_ = true;
 
+      std::cout << "Press Enter to continue..." << std::endl;
+      std::cin.get();
+
       // Construct path to goal
       ConstructPath(new_node);
       return goal_reached_;
     }
 
-    std::cout << "Press Enter to continue... " << counter_ << std::endl;
-    std::cin.get();
+    // std::cout << "Press Enter to continue... Size: " << counter_ << std::endl;
+    // std::cin.get();
 
     counter_++;
   }
@@ -125,40 +138,48 @@ Eigen::Vector2f Global_Planner::SamplePoint(const Eigen::Vector2f robot_loc, con
 
 Node Global_Planner::FindClosestNode(const Eigen::Vector2f loc) {
   float min_dist = 1000;
-  Node closest_node = node_map_.at(0);
+  Node closest_node = node_map_.at(0);  // Default closest node is tree top
 
-  // Loop through node map to find closest node that does not require passing through an obstacle to connect
+  // Loop through node map to find closest node
   for (auto const& index : node_map_) {
     Node node = index.second;   // retrieve node from node_map
 
-    // Check for a smaller distance
+    // Check for a smaller distance and update
     float dist = (node.loc - loc).norm();
-
     if (dist < min_dist) {
-      // Check that it does not pass through an obstacle
-      line2f line(
-        node.loc[0], node.loc[1],
-        loc[0], loc[1]
-      );
-
-      // Loop through map lines checking for instersections
-      for (size_t j = 0; j < map_.lines.size(); ++j) {
-        const line2f map_line = map_.lines[j];
-
-
-        // Check for instersection
-        Eigen::Vector2f intersection_point;
-        bool intersects = map_line.Intersection(line, &intersection_point);
-
-        if (!intersects) {
-          min_dist = dist;
-          closest_node = node;
-        }
-      }
+      min_dist = dist;
+      closest_node = node;
     }
   }
 
   return closest_node;
+}
+
+bool Global_Planner::CheckMapCollision(Node node) {
+  bool collision_flag = false;
+
+  // Create line between node and its parent
+  line2f line(
+    node.loc[0], node.loc[1],
+    node_map_.at(node.parent).loc[0], node_map_.at(node.parent).loc[1]
+  );
+
+  // Loop through map lines checking for instersections
+  for (size_t j = 0; j < map_.lines.size(); ++j) {
+    const line2f map_line = map_.lines[j];
+
+    // Check for instersection
+    Eigen::Vector2f intersection_point;
+    bool intersects = map_line.Intersection(line, &intersection_point);
+
+    // Intersect found
+    if (intersects) {
+      collision_flag = true;
+      break;
+    }
+  }
+
+  return collision_flag;
 }
 
 Node Global_Planner::CreateChildNode(Node parent, const Eigen::Vector2f loc) {
@@ -211,7 +232,7 @@ void Global_Planner::ConstructPath(const Node goal_node) {
   unsigned int path_length = 0;
 
   // Restart visualization
-  visualization::ClearVisualizationMsg(viz_msg_);
+  // visualization::ClearVisualizationMsg(viz_msg_);
 
   // Draw goal
   visualization::DrawCross(goal_, 0.1, 0xb30b0b, viz_msg_);
@@ -226,9 +247,6 @@ void Global_Planner::ConstructPath(const Node goal_node) {
     path_.insert(path_.begin(), curr_node.loc);
     curr_node = node_map_.at(curr_node.parent);
     path_length++;
-
-    std::cout << "Press Enter to continue... " << path_length << std::endl;
-    std::cin.get();
 
     viz_pub_.publish(viz_msg_);
   }
