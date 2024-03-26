@@ -26,35 +26,35 @@ namespace global_planner {
 
 struct Node {
   unsigned int id;
-  Node* parent;
+  unsigned int parent;    // TODO Could not figure out using Node*
   Eigen::Vector2f loc;
   float cost;
 };
 
 class Global_Planner {
   public:
-    Global_Planner(vector_map::VectorMap map, ros::NodeHandle* n);
+    Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n);
 
     void ClearPath(void);
 
-    void SetRobotLocation(Eigen::Vector2f loc);
+    void SetRobotLocation(const Eigen::Vector2f loc);
 
-    void SetGoalLocation(Eigen::Vector2f loc);
+    void SetGoalLocation(const Eigen::Vector2f loc);
 
     bool CalculatePath(unsigned int max_iterations);
 
     std::vector<Eigen::Vector2f> GetPath(void);
 
   private:
-    Eigen::Vector2f SamplePoint(Eigen::Vector2f robot_loc, Eigen::Vector2f goal_loc);
+    Eigen::Vector2f SamplePoint(const Eigen::Vector2f robot_loc, const Eigen::Vector2f goal_loc);
 
-    Node FindClosestNode(Eigen::Vector2f loc);
+    Node FindClosestNode(const Eigen::Vector2f loc);
 
-    Node CreateChildNode(Node parent, Eigen::Vector2f loc);
+    Node CreateChildNode(Node parent, const Eigen::Vector2f loc);
 
     void OptimizePathToNode(Node* node);
 
-    void ConstructPath(Node goal_node);
+    void ConstructPath(const Node goal_node);
 
     ros::Publisher viz_pub_;
     amrl_msgs::VisualizationMsg viz_msg_;
