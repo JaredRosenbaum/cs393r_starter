@@ -55,6 +55,7 @@ ROSBUILD_ADD_EXECUTABLE(navigation
                         src/navigation/navigation_main.cc
                         src/navigation/navigation.cc
                         src/navigation/controllers.cpp
+                        src/navigation/global_planner.cc
                         src/navigation/functions.cpp
                         src/navigation/path_generation.cpp
                         src/navigation/local_planner.cpp)
