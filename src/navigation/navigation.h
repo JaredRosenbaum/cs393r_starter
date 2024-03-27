@@ -119,7 +119,7 @@ class Navigation {
   double last_msg_timestamp_;
   controllers::latency_compensation::Controller *latency_controller_;
 
-  NavigationParams robot_config_;
+  // NavigationParams robot_config_;
   // +
 };
 

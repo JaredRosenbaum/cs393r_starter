@@ -18,7 +18,7 @@
 #include "shared/math/math_util.h"
 
 // #include "navigation.h"
-#include "path_options.h"
+#include "path_generation.h"
 #include "vehicles.hpp"
 #include "functions.h"
 
@@ -51,7 +51,7 @@ class Controller {
 
     float calculateDistanceToGoal(const float curvature);
 
-    Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_options::PathOption> paths, path_options::PathOption &best_path, const NavigationParams &robot_config);
+    Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_generation::Path> &paths, path_generation::Path &best_path);
 
     float getControlInterval();
 
@@ -85,7 +85,7 @@ class Controller {
     Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval, float latency);
     ~Controller();
 
-    time_optimal_1D::Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<path_options::PathOption> paths, path_options::PathOption &best_path, const NavigationParams &robot_config);
+    time_optimal_1D::Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<path_generation::Path> &paths, path_generation::Path &best_path);
 
     void recordCommand(const time_optimal_1D::Command command);
   private:

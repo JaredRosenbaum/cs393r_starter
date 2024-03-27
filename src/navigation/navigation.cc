@@ -33,7 +33,7 @@
 #include "shared/ros/ros_helpers.h"
 #include "navigation.h"
 #include "visualization/visualization.h"
-#include "navigation/path_options.h"
+#include "navigation/path_generation.h"
 
 using Eigen::Vector2f;
 using amrl_msgs::AckermannCurvatureDriveMsg;
@@ -98,7 +98,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
 
   latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
 
-  robot_config_ = NavigationParams();
+  // robot_config_ = NavigationParams();
   // +
 }
 
@@ -159,30 +159,19 @@ void Navigation::Run() {
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
 
-  // The control iteration goes here.
-  // The latest observed point cloud is accessible via "point_cloud_"
-
   // . regular TOC
   // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  
   // . with latency compensation
-  std::vector<path_options::PathOption> path_options = path_options::samplePathOptions(31, point_cloud_, robot_config_);
-  int best_path_index = path_options::selectPath(path_options);
-  std::cout << "==========" << std::endl;
-  std::cout << "\tCurv: " << path_options[best_path_index].curvature << "\tFpl: " << path_options[best_path_index].free_path_length << "\tClr: " << path_options[best_path_index].clearance << std::endl;
+  path_generation::Path best_path;
+  std::vector<path_generation::Path> path_options;
+  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path)};
 
-  path_options::PathOption best_path;
-  std::vector<path_options::PathOption> path_candidates;
-  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_candidates, best_path, robot_config_)};
+  // std::cout << "==========" << std::endl;
+  // std::cout << "\tCurv: " << best_path.curvature << "\tFpl: " << best_path.free_path_length << "\tClr: " << best_path.clearance << std::endl;
 
-  std::cout << "\tCurv: " << best_path.curvature << "\tFpl: " << best_path.free_path_length << "\tClr: " << best_path.clearance << std::endl;
-
-  // std::cout << "Returned " << path_candidates.size() << " paths!" << std::endl;
-  // std::cout << "Command: " << command.curvature << std::endl;
-  // std::cout << "Clearance of best path: " << best_path.clearance << std::endl;
-  // std::vector<float> regimes {0.2, 0.35, 0.5, 1}; // curvature
-  // std::vector<float> regimes {1.0, 2.0, 5.0, 8.0}; // free path length
+  // . Draw possible paths
   std::vector<float> regimes {0.03, 0.1, 0.25, 0.5}; // clearance
-  // std::vector<float> regimes {0.5, 1.0, 2.0, 3.0}; // clearance
   // for (const auto &path : path_candidates) {
   for (const auto &path : path_options) {
     uint32_t color;
@@ -204,15 +193,10 @@ void Navigation::Run() {
                                   false,
                                   local_viz_msg_);
   }
-  // visualization::DrawPathOption(best_path.curvature,
-  //                                 best_path.free_path_length,
-  //                                 best_path.clearance,
-  //                                 10000,
-  //                                 true,
-  //                                 local_viz_msg_);
-  visualization::DrawPathOption(path_options[best_path_index].curvature,
-                                  path_options[best_path_index].free_path_length,
-                                  path_options[best_path_index].clearance,
+  // . Draw best path
+  visualization::DrawPathOption(best_path.curvature,
+                                  best_path.free_path_length,
+                                  best_path.clearance,
                                   10000,
                                   true,
                                   local_viz_msg_);
@@ -220,10 +204,6 @@ void Navigation::Run() {
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
-
-  // float current_speed = robot_vel_.norm();
-  // drive_msg_.curvature = path_options[best_path_index].curvature;
-  // drive_msg_.velocity = path_options::run1DTimeOptimalControl(path_options[best_path_index].free_path_length, current_speed, robot_config_);
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();

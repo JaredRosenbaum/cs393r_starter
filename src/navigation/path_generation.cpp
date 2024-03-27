@@ -1,4 +1,4 @@
-#include "path_options.h"
+#include "path_generation.h"
 #include <cstdio>
 #include <iostream>
 // #include <cmath>
@@ -8,54 +8,54 @@
 
 // do this on path option after selecting it
 
-namespace path_options {
+namespace path_generation {
 
-float run1DTimeOptimalControl(float dist_to_go, float current_speed, const NavigationParams& robot_config) {
-    float max_accel = robot_config.max_accel;
-    float max_decel = robot_config.max_decel;
-    float max_vel = robot_config.max_vel;
-    float dt = robot_config.dt;
-    float cruise_stopping_dist = pow(current_speed, 2) / (2 * max_decel);
-    float accel_stopping_dist = pow(current_speed + dt * max_accel, 2) / (2 * max_decel);
-    // std::cout << "Current Speed: " << current_speed << std::endl;
-    // std::cout << "Max Velocity: " << max_vel << std::endl;
-    // std::cout << "dt: " << dt << std::endl;
-    // std::cout << "Cruise Stopping Distance: " << cruise_stopping_dist << std::endl;
-    // std::cout << "Dist to go: " << dist_to_go << std::endl;
+// float run1DTimeOptimalControl(float dist_to_go, float current_speed, const NavigationParams& robot_config) {
+//     float max_accel = robot_config.max_accel;
+//     float max_decel = robot_config.max_decel;
+//     float max_vel = robot_config.max_vel;
+//     float dt = robot_config.dt;
+//     float cruise_stopping_dist = pow(current_speed, 2) / (2 * max_decel);
+//     float accel_stopping_dist = pow(current_speed + dt * max_accel, 2) / (2 * max_decel);
+//     // std::cout << "Current Speed: " << current_speed << std::endl;
+//     // std::cout << "Max Velocity: " << max_vel << std::endl;
+//     // std::cout << "dt: " << dt << std::endl;
+//     // std::cout << "Cruise Stopping Distance: " << cruise_stopping_dist << std::endl;
+//     // std::cout << "Dist to go: " << dist_to_go << std::endl;
 
-    // if dist_to_go is larger than stopping_dist and not at max vel, can accelerate
-    if (dist_to_go > accel_stopping_dist && current_speed < max_vel) {
-        return std::min(max_vel, current_speed + max_accel * dt);
-    }
-    else if (dist_to_go > cruise_stopping_dist && current_speed == max_vel) {  // can stop in time and at max vel
-                                                                        // probably needs hysteresis
-        return current_speed;
-    }
-    else {  // otherwise needs to decelerate
-        return std::max(current_speed - max_decel * dt, 0.0f);
-    }
-}
+//     // if dist_to_go is larger than stopping_dist and not at max vel, can accelerate
+//     if (dist_to_go > accel_stopping_dist && current_speed < max_vel) {
+//         return std::min(max_vel, current_speed + max_accel * dt);
+//     }
+//     else if (dist_to_go > cruise_stopping_dist && current_speed == max_vel) {  // can stop in time and at max vel
+//                                                                         // probably needs hysteresis
+//         return current_speed;
+//     }
+//     else {  // otherwise needs to decelerate
+//         return std::max(current_speed - max_decel * dt, 0.0f);
+//     }
+// }
 
 
 
 // set curvature, free path length, obstruction for a path option
-void setPathOption(PathOption& path_option,
+void setPathOption(Path& path_option,
                         float curvature, const std::vector<Eigen::Vector2f>& point_cloud,
-                        const NavigationParams& robot_config) {
+                        const vehicles::Car& robot_config) {
     path_option.curvature = curvature;
-    float h = robot_config.length - robot_config.base_link_offset; // distance from base link to front bumper
+    float h {(robot_config.dimensions_.length_ + robot_config.dimensions_.wheelbase_) / 2}; // distance from base link to front bumper
     if (curvature == 0) {
         for (auto p: point_cloud) {
-            if (robot_config.width/2 + robot_config.safety_margin >= abs(p[1])
+            if (robot_config.dimensions_.width_ / 2 + CAR_MARGIN >= abs(p[1])
                 && p[0] < path_option.free_path_length) {
-                path_option.free_path_length = p[0] - h - robot_config.safety_margin;
+                path_option.free_path_length = p[0] - h - CAR_MARGIN;
                 path_option.obstruction = p;
             }
         }
         // clearance
         for (auto p: point_cloud) {
             if (p[0] >=0 and p[0] < path_option.free_path_length) {
-                float clearance_p = abs(p[1]) - robot_config.width / 2 - robot_config.safety_margin;
+                float clearance_p = abs(p[1]) - robot_config.dimensions_.width_ / 2 - CAR_MARGIN;
                 if (clearance_p < path_option.clearance) {
                     path_option.clearance = clearance_p;
                     path_option.closest_point = p;
@@ -66,15 +66,15 @@ void setPathOption(PathOption& path_option,
     }
 
     Vector2f c = Vector2f(0, 1 / curvature);
-    float r_inner = c.norm() - robot_config.width / 2 - robot_config.safety_margin;
-    float r_outer = c.norm() + robot_config.width / 2 + robot_config.safety_margin;
-    float r_tl = (Vector2f(0, r_inner) - Vector2f(h + robot_config.safety_margin, 0)).norm();
-    float r_tr = (Vector2f(0, r_outer) - Vector2f(h + robot_config.safety_margin, 0)).norm();
-    float r_br = (Vector2f(0, r_outer) - Vector2f(robot_config.base_link_offset + robot_config.safety_margin, 0)).norm();
+    float r_inner = c.norm() - robot_config.dimensions_.width_ / 2 - CAR_MARGIN;
+    float r_outer = c.norm() + robot_config.dimensions_.width_ / 2 + CAR_MARGIN;
+    float r_tl = (Vector2f(0, r_inner) - Vector2f(h + CAR_MARGIN, 0)).norm();
+    float r_tr = (Vector2f(0, r_outer) - Vector2f(h + CAR_MARGIN, 0)).norm();
+    float r_br = (Vector2f(0, r_outer) - Vector2f((robot_config.dimensions_.length_ - robot_config.dimensions_.wheelbase_) / 2 + CAR_MARGIN, 0)).norm();
     path_option.free_path_length = std::min(M_PI * c.norm(), 5.0); //5.0);  // some large number
     // float omega = atan2(h, r_inner);
 
-    float theta_br = asin(robot_config.base_link_offset + robot_config.safety_margin / r_br); // angle where back right would hit
+    float theta_br = asin((robot_config.dimensions_.length_ + robot_config.dimensions_.wheelbase_) / 2 + CAR_MARGIN / r_br); // angle where back right would hit
     float phi = 0;
 //	cout << "curvature " << curvature << endl;
 //	bool front_side = false, outer_side = false, inner_side = false;
@@ -91,7 +91,7 @@ void setPathOption(PathOption& path_option,
                 // cout << "inner side hit" << endl;
         }
         if ((r_inner <= r_p && r_p <= r_br) && (-theta_br <= theta && theta <= theta_br)) {    // outer side hit
-            phi = acos(r_p / (c.norm() + robot_config.width / 2));
+            phi = acos(r_p / (c.norm() + robot_config.dimensions_.width_ / 2));
             length = (theta - phi) * c.norm();
 	    // outer_side = true;
 	    // cout << "outer side hit" << endl;
@@ -143,12 +143,12 @@ void setPathOption(PathOption& path_option,
 // given point cloud (robot frame), num options, max curvature
 // out const std::vector path options
 
-std::vector<PathOption> samplePathOptions(int num_options,
+std::vector<Path> samplePathOptions(int num_options,
                                                     const std::vector<Eigen::Vector2f>& point_cloud,
-                                                    const NavigationParams& robot_config) {
-    static std::vector<PathOption> path_options;
+                                                    const vehicles::Car &robot_config) {
+    static std::vector<Path> path_options;
     path_options.clear();
-    float max_curvature = robot_config.max_curvature;
+    float max_curvature = robot_config.limits_.max_curvature_;
 
     // loop through curvature from max to -max
     for (int i = 0; i < num_options; i++) { 
@@ -157,7 +157,7 @@ std::vector<PathOption> samplePathOptions(int num_options,
             curvature = -curvature;
         }
         
-        PathOption path_option;
+        Path path_option;
         setPathOption(path_option, curvature, point_cloud, robot_config);
         path_options.push_back(path_option);
     }
@@ -176,7 +176,7 @@ float score(float free_path_length, float curvature, float clearance) {
 // returns the index of the selected path
 // for now, just return the index of the path with the longest free path length
 // if there are multiple paths with the same free path length, return the one with the smallest curvature
-int selectPath(const std::vector<PathOption>& path_options) {
+int selectPath(const std::vector<Path>& path_options) {
     int selected_path = 0;
     float best_score = 0;
     for (unsigned int i = 0; i < path_options.size(); i++) {
@@ -189,4 +189,4 @@ int selectPath(const std::vector<PathOption>& path_options) {
     return selected_path;
 }
 
-} // namespace path_options
+} // namespace path_generation

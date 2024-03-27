@@ -80,10 +80,10 @@ float Controller::calculateDistanceToGoal(const float curvature)
   return goal_distance;
 }
 
-Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_options::PathOption> paths, path_options::PathOption &best_path, const NavigationParams &robot_config)
+Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_generation::Path> &paths, path_generation::Path &best_path)
 {
-  paths = path_options::samplePathOptions(31, point_cloud, robot_config);
-  int best_path_index {path_options::selectPath(paths)};
+  paths = path_generation::samplePathOptions(31, point_cloud, *car_);
+  int best_path_index {path_generation::selectPath(paths)};
   best_path = paths[best_path_index];
 
   float speed {Controller::calculateControlSpeed(current_speed, paths[best_path_index].free_path_length)};
@@ -139,7 +139,7 @@ void Controller::recordCommand(const time_optimal_1D::Command command)
 // & projecting forward
 // -------------------------------------------------------------------------
 
-time_optimal_1D::Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<path_options::PathOption> paths, path_options::PathOption &best_path, const NavigationParams &robot_config)
+time_optimal_1D::Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<path_generation::Path> &paths, path_generation::Path &best_path)
 {
   // using latency, and history of results, project the car's position and velocity forward through time; search the controls queue and pop until a timestamp is newer than the current time
   State2D projected_state {Controller::projectState(current_speed, last_data_timestamp)};
@@ -148,7 +148,7 @@ time_optimal_1D::Command Controller::generateCommand(const std::vector<Vector2f>
   auto cloud {Controller::transformCloud(point_cloud, projected_state)};
 
   // feed these updated parameters into the 1D time-optimal controller
-  time_optimal_1D::Command command {toc_->generateCommand(cloud, projected_state.speed, paths, best_path, robot_config)};
+  time_optimal_1D::Command command {toc_->generateCommand(cloud, projected_state.speed, paths, best_path)};
 
   // receive a response from the 1D TOC and record it, then bubble it back out to the main
   Controller::recordCommand(command);
