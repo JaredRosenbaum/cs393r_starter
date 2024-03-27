@@ -165,14 +165,14 @@ void Navigation::Run() {
   // . regular TOC
   // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
   // . with latency compensation
-  std::vector<PathOption> path_options = samplePathOptions(31, point_cloud_, robot_config_);
-  int best_path_index = selectPath(path_options);
+  std::vector<path_options::PathOption> path_options = path_options::samplePathOptions(31, point_cloud_, robot_config_);
+  int best_path_index = path_options::selectPath(path_options);
   std::cout << "==========" << std::endl;
   std::cout << "\tCurv: " << path_options[best_path_index].curvature << "\tFpl: " << path_options[best_path_index].free_path_length << "\tClr: " << path_options[best_path_index].clearance << std::endl;
 
-  controllers::PathCandidate best_path;
-  std::vector<controllers::PathCandidate> path_candidates;
-  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_candidates, best_path)};
+  path_options::PathOption best_path;
+  std::vector<path_options::PathOption> path_candidates;
+  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_candidates, best_path, robot_config_)};
 
   std::cout << "\tCurv: " << best_path.curvature << "\tFpl: " << best_path.free_path_length << "\tClr: " << best_path.clearance << std::endl;
 
@@ -218,12 +218,12 @@ void Navigation::Run() {
                                   local_viz_msg_);
 
   // Eventually, you will have to set the control values to issue drive commands:
-  // drive_msg_.curvature = command.curvature;
-  // drive_msg_.velocity = command.velocity;
+  drive_msg_.curvature = command.curvature;
+  drive_msg_.velocity = command.velocity;
 
-  float current_speed = robot_vel_.norm();
-  drive_msg_.curvature = path_options[best_path_index].curvature;
-  drive_msg_.velocity = run1DTimeOptimalControl(path_options[best_path_index].free_path_length, current_speed, robot_config_);
+  // float current_speed = robot_vel_.norm();
+  // drive_msg_.curvature = path_options[best_path_index].curvature;
+  // drive_msg_.velocity = path_options::run1DTimeOptimalControl(path_options[best_path_index].free_path_length, current_speed, robot_config_);
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();

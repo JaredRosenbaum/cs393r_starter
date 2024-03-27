@@ -8,7 +8,9 @@
 
 // do this on path option after selecting it
 
-float run1DTimeOptimalControl(float dist_to_go, float current_speed, const navigation::NavigationParams& robot_config) {
+namespace path_options {
+
+float run1DTimeOptimalControl(float dist_to_go, float current_speed, const NavigationParams& robot_config) {
     float max_accel = robot_config.max_accel;
     float max_decel = robot_config.max_decel;
     float max_vel = robot_config.max_vel;
@@ -37,9 +39,9 @@ float run1DTimeOptimalControl(float dist_to_go, float current_speed, const navig
 
 
 // set curvature, free path length, obstruction for a path option
-void setPathOption(navigation::PathOption& path_option,
-                        float curvature, const vector<Eigen::Vector2f>& point_cloud,
-                        const navigation::NavigationParams& robot_config) {
+void setPathOption(PathOption& path_option,
+                        float curvature, const std::vector<Eigen::Vector2f>& point_cloud,
+                        const NavigationParams& robot_config) {
     path_option.curvature = curvature;
     float h = robot_config.length - robot_config.base_link_offset; // distance from base link to front bumper
     if (curvature == 0) {
@@ -139,12 +141,12 @@ void setPathOption(navigation::PathOption& path_option,
 
 // sample path options
 // given point cloud (robot frame), num options, max curvature
-// out const vector path options
+// out const std::vector path options
 
-vector<navigation::PathOption> samplePathOptions(int num_options,
-                                                    const vector<Eigen::Vector2f>& point_cloud,
-                                                    const navigation::NavigationParams& robot_config) {
-    static vector<navigation::PathOption> path_options;
+std::vector<PathOption> samplePathOptions(int num_options,
+                                                    const std::vector<Eigen::Vector2f>& point_cloud,
+                                                    const NavigationParams& robot_config) {
+    static std::vector<PathOption> path_options;
     path_options.clear();
     float max_curvature = robot_config.max_curvature;
 
@@ -155,7 +157,7 @@ vector<navigation::PathOption> samplePathOptions(int num_options,
             curvature = -curvature;
         }
         
-        navigation::PathOption path_option;
+        PathOption path_option;
         setPathOption(path_option, curvature, point_cloud, robot_config);
         path_options.push_back(path_option);
     }
@@ -174,7 +176,7 @@ float score(float free_path_length, float curvature, float clearance) {
 // returns the index of the selected path
 // for now, just return the index of the path with the longest free path length
 // if there are multiple paths with the same free path length, return the one with the smallest curvature
-int selectPath(const vector<navigation::PathOption>& path_options) {
+int selectPath(const std::vector<PathOption>& path_options) {
     int selected_path = 0;
     float best_score = 0;
     for (unsigned int i = 0; i < path_options.size(); i++) {
@@ -187,3 +189,4 @@ int selectPath(const vector<navigation::PathOption>& path_options) {
     return selected_path;
 }
 
+} // namespace path_options

@@ -1,23 +1,38 @@
-#include "navigation.h"
-// #inlcude <vector>
-using std::vector;
-using Eigen::Vector2f;
-
 
 #ifndef PATH_OPTIONS_H
 #define PATH_OPTIONS_H
 
-float run1DTimeOptimalControl(float dist_to_go, float current_speed, const navigation::NavigationParams& nav_params);
+#include <vector>
+#include "eigen3/Eigen/Dense"
+#include "parameters.h"
 
-void setPathOption(navigation::PathOption& path_option,
+using std::vector;
+using Eigen::Vector2f;
+
+namespace path_options {
+
+struct PathOption {
+  float curvature = 0;
+  float clearance = 10;
+  float free_path_length = 10;
+  Eigen::Vector2f obstruction = Eigen::Vector2f::Zero();
+  Eigen::Vector2f closest_point = Eigen::Vector2f::Zero();
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+};
+
+float run1DTimeOptimalControl(float dist_to_go, float current_speed, const NavigationParams& nav_params);
+
+void setPathOption(PathOption& path_option,
     float curvature,
     const std::vector<Eigen::Vector2f>& point_cloud,
-    const navigation::NavigationParams& nav_params);
+    const NavigationParams& nav_params);
 
-vector<navigation::PathOption> samplePathOptions(int num_options,
-                                                    const vector<Eigen::Vector2f>& point_cloud,
-                                                    const navigation::NavigationParams& robot_config);
+std::vector<PathOption> samplePathOptions(int num_options,
+                                                    const std::vector<Eigen::Vector2f>& point_cloud,
+                                                    const NavigationParams& robot_config);
 
-int selectPath(const vector<navigation::PathOption>& path_options);
+int selectPath(const std::vector<PathOption>& path_options);
 
-#endif  // PATH_OPTIONS_H
+} // namespace path_options
+
+#endif // PATH_OPTIONS_H

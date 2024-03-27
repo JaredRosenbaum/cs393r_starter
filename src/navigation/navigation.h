@@ -23,10 +23,8 @@
 #include "eigen3/Eigen/Dense"
 #include "vector_map/vector_map.h"
 
-// +
 #include "vehicles.hpp"
 #include "controllers.h"
-// +
 
 #ifndef NAVIGATION_H
 #define NAVIGATION_H
@@ -44,34 +42,6 @@ struct PathOption {
   Eigen::Vector2f obstruction = Eigen::Vector2f::Zero();
   Eigen::Vector2f closest_point = Eigen::Vector2f::Zero();
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-};
-
-struct NavigationParams {
-  // frequency
-  float dt = .05f;
-  // max velocity
-  float max_vel = 1.0f;
-  // max acceleration
-  float max_accel = 4.0f;
-  float max_decel = 4.0f;
-  // max angular velocity
-  float max_omega = 1.0f;
-  // max angular acceleration
-  float max_alpha = 1.0f;
-  // max curvature
-  float max_curvature = 1.0f;
-  // safety margin
-  float safety_margin = 0.1f;
-
-  // robot dimensions
-  float  width = 0.281f;
-  float  length = 0.535f;
-  float  wheelbase = 0.324f;
-  float  base_link_offset = 0.106f; // make this 0 for now
-
-  // delays
-  float actuation_latency = 0.0f;
-  float observation_latency = 0.0f;
 };
 
 class Navigation {
