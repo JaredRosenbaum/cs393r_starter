@@ -82,7 +82,7 @@ float Controller::calculateDistanceToGoal(const float curvature)
 
 Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_generation::Path> &paths, path_generation::Path &best_path)
 {
-  paths = path_generation::samplePathOptions(31, point_cloud, *car_);
+  paths = path_generation::samplePathOptions(N_PATHS, point_cloud, *car_);
   int best_path_index {path_generation::selectPath(paths)};
   best_path = paths[best_path_index];
 
