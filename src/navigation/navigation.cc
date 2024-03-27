@@ -99,15 +99,14 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
 
   //* instantiating the local planner
-  //TODO These shouldn't be hardcoded they should be from params
   for (int i = 0; i < 20; i++){
-    Vector2f point(i, rand()%2);
-    if (rand()%2 == 1){
+    Vector2f point(i, rand()%3);
+    if (rand()%3 == 1){
       point.y() *= -1;
     }
     testing_path.push_back(point);
   }
-  carrot_planner_ = new local_planners::CarrotPlanner(3.5, 0.1, 0.8);
+  carrot_planner_ = new local_planners::CarrotPlanner(STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
 
   // robot_config_ = NavigationParams();
   // +
@@ -182,12 +181,12 @@ void Navigation::Run() {
 
   Vector2f goal {carrot_planner_->feedCarrot(robot_loc_)};
 
-  // visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
+  visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
   // .Transform goal to robot frame
   goal -= robot_loc_;
   goal.x() = goal.x()*cos(-robot_angle_) - goal.y()*sin(-robot_angle_);
   goal.y() = goal.y()*cos(-robot_angle_) + goal.x()*sin(-robot_angle_);
-  // visualization::DrawCross(goal,0.25,0x38114a,local_viz_msg_);
+  visualization::DrawCross(goal,0.25,0x38114a,local_viz_msg_);
 
   
   // . with latency compensation

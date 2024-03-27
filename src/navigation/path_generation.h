@@ -28,12 +28,12 @@ void setPathOption(Path& path_option,
     float curvature,
     const std::vector<Eigen::Vector2f>& point_cloud,
     const vehicles::Car& robot_config,
-    Vector2f goal);
+    const Vector2f goal);
 
 std::vector<Path> samplePathOptions(int num_options,
                                                     const std::vector<Eigen::Vector2f>& point_cloud,
                                                     const vehicles::Car& robot_config,
-                                                    Vector2f goal);
+                                                    const Vector2f goal);
 
 int selectPath(const std::vector<Path>& path_options);
 

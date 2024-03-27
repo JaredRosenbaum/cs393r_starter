@@ -51,7 +51,7 @@ class Controller {
 
     float calculateDistanceToGoal(const float curvature);
 
-    Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_generation::Path> &paths, path_generation::Path &best_path, Vector2f goal);
+    Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_generation::Path> &paths, path_generation::Path &best_path, const Vector2f goal);
 
     float getControlInterval();
 
@@ -85,7 +85,7 @@ class Controller {
     Controller(vehicles::Car *car, float control_interval, float margin, float max_clearance, float curvature_sampling_interval, float latency);
     ~Controller();
 
-    time_optimal_1D::Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<path_generation::Path> &paths, path_generation::Path &best_path, Vector2f goal);
+    time_optimal_1D::Command generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<path_generation::Path> &paths, path_generation::Path &best_path, const Vector2f goal);
 
     void recordCommand(const time_optimal_1D::Command command);
   private:

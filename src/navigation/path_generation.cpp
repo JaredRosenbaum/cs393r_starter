@@ -42,7 +42,7 @@ namespace path_generation {
 void setPathOption(Path& path_option,
                         float curvature, const std::vector<Eigen::Vector2f>& point_cloud,
                         const vehicles::Car& robot_config,
-                        Vector2f goal) {
+                        const Vector2f goal) {
     path_option.curvature = curvature;
     float h {(robot_config.dimensions_.length_ + robot_config.dimensions_.wheelbase_) / 2}; // distance from base link to front bumper
     Vector2f projected_pos(0.0, 0.0);
@@ -166,7 +166,7 @@ void setPathOption(Path& path_option,
 std::vector<Path> samplePathOptions(int num_options,
                                                     const std::vector<Eigen::Vector2f>& point_cloud,
                                                     const vehicles::Car &robot_config,
-                                                    Vector2f goal) {
+                                                    const Vector2f goal) {
     static std::vector<Path> path_options;
     path_options.clear();
     float max_curvature = robot_config.limits_.max_curvature_;
@@ -191,7 +191,7 @@ float score(float free_path_length, float curvature, float clearance, float goal
     const float w1 = 1.0;
     const float w2 = 0;
     const float w3 = 0.1; //0.1;
-    const float w4 = -0.5;
+    const float w4 = -0.8;
     return w1 * free_path_length + w2 * abs(1/curvature) + w3 * clearance + w4 * goal_dist;
 }
 

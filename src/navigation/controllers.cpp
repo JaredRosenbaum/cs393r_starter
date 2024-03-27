@@ -60,27 +60,27 @@ float Controller::calculateControlSpeed(float current_speed, const float free_pa
   return control_speed;
 }
 
-float Controller::calculateDistanceToGoal(const float curvature)
-{
-  Vector2f goal(10.0, 0.0);
-  Vector2f projected_pos(0.0, 0.0);
-  float goal_distance = 0;
+// float Controller::calculateDistanceToGoal(const float curvature)
+// {
+//   // Vector2f goal(10.0, 0.0);
+//   Vector2f projected_pos(0.0, 0.0);
+//   float goal_distance = 0;
 
-  if (std::abs(curvature) < 0.01) {    // Straight line case
-    projected_pos.x() = car_->limits_.max_speed_ * control_interval_;
-    goal_distance = (goal-projected_pos).norm();
-  }
-  else {  // Moving along an arc
-    float radius {1.0f / curvature};
-    float phi = (car_->limits_.max_speed_ * control_interval_) / radius;
-    projected_pos.x() = radius * sin(phi);
-    projected_pos.y() = radius - (radius * cos(phi));
-    goal_distance = (goal-projected_pos).norm();
-  }
-  return goal_distance;
-}
+//   if (std::abs(curvature) < 0.01) {    // Straight line case
+//     projected_pos.x() = car_->limits_.max_speed_ * control_interval_;
+//     goal_distance = (goal-projected_pos).norm();
+//   }
+//   else {  // Moving along an arc
+//     float radius {1.0f / curvature};
+//     float phi = (car_->limits_.max_speed_ * control_interval_) / radius;
+//     projected_pos.x() = radius * sin(phi);
+//     projected_pos.y() = radius - (radius * cos(phi));
+//     goal_distance = (goal-projected_pos).norm();
+//   }
+//   return goal_distance;
+// }
 
-Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_generation::Path> &paths, path_generation::Path &best_path, Vector2f goal)
+Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, std::vector<path_generation::Path> &paths, path_generation::Path &best_path, const Vector2f goal)
 {
   paths = path_generation::samplePathOptions(N_PATHS, point_cloud, *car_, goal);
   int best_path_index {path_generation::selectPath(paths)};
@@ -139,7 +139,7 @@ void Controller::recordCommand(const time_optimal_1D::Command command)
 // & projecting forward
 // -------------------------------------------------------------------------
 
-time_optimal_1D::Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<path_generation::Path> &paths, path_generation::Path &best_path, Vector2f goal)
+time_optimal_1D::Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, const float current_speed, const double last_data_timestamp, std::vector<path_generation::Path> &paths, path_generation::Path &best_path, const Vector2f goal)
 {
   // using latency, and history of results, project the car's position and velocity forward through time; search the controls queue and pop until a timestamp is newer than the current time
   State2D projected_state {Controller::projectState(current_speed, last_data_timestamp)};
