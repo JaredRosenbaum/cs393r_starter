@@ -98,6 +98,17 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
 
   latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
 
+  //* instantiating the local planner
+  //TODO These shouldn't be hardcoded they should be from params
+  for (int i = 0; i < 20; i++){
+    Vector2f point(i, rand()%2);
+    if (rand()%2 == 1){
+      point.y() *= -1;
+    }
+    testing_path.push_back(point);
+  }
+  carrot_planner_ = new local_planners::CarrotPlanner(3.5, 0.1, 0.8);
+
   // robot_config_ = NavigationParams();
   // +
 }
@@ -161,11 +172,32 @@ void Navigation::Run() {
 
   // . regular TOC
   // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
+  carrot_planner_->populatePath(testing_path);
+
+  //Temp visualization of path
+  for (std::size_t i=0; i<=testing_path.size()-1; i++){
+        visualization::DrawLine(testing_path[i],testing_path[i+1],0x38114a,global_viz_msg_);
+        visualization::DrawCross(testing_path[i],0.025,0x38114a,global_viz_msg_);
+  }
+
+  Vector2f goal {carrot_planner_->feedCarrot(robot_loc_)};
+
+  // visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
+  // .Transform goal to robot frame
+  goal -= robot_loc_;
+  goal.x() = goal.x()*cos(-robot_angle_) - goal.y()*sin(-robot_angle_);
+  goal.y() = goal.y()*cos(-robot_angle_) + goal.x()*sin(-robot_angle_);
+  // visualization::DrawCross(goal,0.25,0x38114a,local_viz_msg_);
+
   
   // . with latency compensation
   path_generation::Path best_path;
   std::vector<path_generation::Path> path_options;
-  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path)};
+  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path, goal)};
+
+
+
+
 
   // std::cout << "==========" << std::endl;
   // std::cout << "\tCurv: " << best_path.curvature << "\tFpl: " << best_path.free_path_length << "\tClr: " << best_path.clearance << std::endl;

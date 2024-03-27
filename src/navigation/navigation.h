@@ -25,6 +25,7 @@
 
 #include "vehicles.hpp"
 #include "controllers.h"
+#include "local_planner.h"
 
 #ifndef NAVIGATION_H
 #define NAVIGATION_H
@@ -119,6 +120,11 @@ class Navigation {
   double last_msg_timestamp_;
   controllers::latency_compensation::Controller *latency_controller_;
 
+
+  // Local Planner
+  std::vector<Vector2f> testing_path;
+
+  local_planners::CarrotPlanner *carrot_planner_;
   // NavigationParams robot_config_;
   // +
 };

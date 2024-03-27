@@ -41,10 +41,15 @@ namespace path_generation {
 // set curvature, free path length, obstruction for a path option
 void setPathOption(Path& path_option,
                         float curvature, const std::vector<Eigen::Vector2f>& point_cloud,
-                        const vehicles::Car& robot_config) {
+                        const vehicles::Car& robot_config,
+                        Vector2f goal) {
     path_option.curvature = curvature;
     float h {(robot_config.dimensions_.length_ + robot_config.dimensions_.wheelbase_) / 2}; // distance from base link to front bumper
+    Vector2f projected_pos(0.0, 0.0);
+    float goal_distance = 0;
+
     if (curvature == 0) {
+        // fpl
         for (auto p: point_cloud) {
             if (robot_config.dimensions_.width_ / 2 + CAR_MARGIN >= abs(p[1])
                 && p[0] < path_option.free_path_length) {
@@ -52,6 +57,10 @@ void setPathOption(Path& path_option,
                 path_option.obstruction = p;
             }
         }
+        // goal distance
+        projected_pos.x() = robot_config.limits_.max_speed_ * TIME_STEP;
+        goal_distance = (goal-projected_pos).norm();
+        path_option.dist_to_goal = goal_distance;
         // clearance
         for (auto p: point_cloud) {
             if (p[0] >=0 and p[0] < path_option.free_path_length) {
@@ -73,6 +82,8 @@ void setPathOption(Path& path_option,
     float r_br = (Vector2f(0, r_outer) - Vector2f((robot_config.dimensions_.length_ - robot_config.dimensions_.wheelbase_) / 2 + CAR_MARGIN, 0)).norm();
     path_option.free_path_length = std::min(M_PI * c.norm(), 5.0); //5.0);  // some large number
     // float omega = atan2(h, r_inner);
+
+
 
     float theta_br = asin((robot_config.dimensions_.length_ + robot_config.dimensions_.wheelbase_) / 2 + CAR_MARGIN / r_br); // angle where back right would hit
     float phi = 0;
@@ -120,6 +131,14 @@ void setPathOption(Path& path_option,
     //     theta = curvature < 0 ? atan2(path_option.obstruction[0], path_option.obstruction[1]- c[1]) :
     //         atan2(path_option.obstruction[0], c[1] - path_option.obstruction[1]);
     // }
+    //. Distance to goal
+    float radius {1.0f / curvature};
+    float phi_g = (robot_config.limits_.max_speed_ * TIME_STEP) / radius;
+    projected_pos.x() = radius * sin(phi_g);
+    projected_pos.y() = radius - (radius * cos(phi_g));
+    goal_distance = (goal-projected_pos).norm();
+    path_option.dist_to_goal = goal_distance;
+
     // clearance
     // path_option.clearance = 100; // some large number
     for (auto p: point_cloud) {
@@ -136,6 +155,7 @@ void setPathOption(Path& path_option,
             }
         }
     }
+
 }
 
 
@@ -145,7 +165,8 @@ void setPathOption(Path& path_option,
 
 std::vector<Path> samplePathOptions(int num_options,
                                                     const std::vector<Eigen::Vector2f>& point_cloud,
-                                                    const vehicles::Car &robot_config) {
+                                                    const vehicles::Car &robot_config,
+                                                    Vector2f goal) {
     static std::vector<Path> path_options;
     path_options.clear();
     float max_curvature = robot_config.limits_.max_curvature_;
@@ -158,7 +179,7 @@ std::vector<Path> samplePathOptions(int num_options,
         }
         
         Path path_option;
-        setPathOption(path_option, curvature, point_cloud, robot_config);
+        setPathOption(path_option, curvature, point_cloud, robot_config, goal);
         path_options.push_back(path_option);
     }
     // exit(0);
@@ -166,11 +187,12 @@ std::vector<Path> samplePathOptions(int num_options,
 }
 
 
-float score(float free_path_length, float curvature, float clearance) {
+float score(float free_path_length, float curvature, float clearance, float goal_dist) {
     const float w1 = 1.0;
     const float w2 = 0;
     const float w3 = 0.1; //0.1;
-    return w1 * free_path_length + w2 * abs(1/curvature) + w3 * clearance;
+    const float w4 = -0.5;
+    return w1 * free_path_length + w2 * abs(1/curvature) + w3 * clearance + w4 * goal_dist;
 }
 
 // returns the index of the selected path
@@ -180,7 +202,7 @@ int selectPath(const std::vector<Path>& path_options) {
     int selected_path = 0;
     float best_score = 0;
     for (unsigned int i = 0; i < path_options.size(); i++) {
-        float s = score(path_options[i].free_path_length, path_options[i].curvature, path_options[i].clearance);
+        float s = score(path_options[i].free_path_length, path_options[i].curvature, path_options[i].clearance, path_options[i].dist_to_goal);
         if (s > best_score) {
             best_score = s;
             selected_path = i;
