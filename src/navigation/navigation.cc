@@ -129,7 +129,7 @@ void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
   // Calculate global path from planner
   global_planner_->SetRobotLocation(robot_loc_);
   global_planner_->SetGoalLocation(nav_goal_loc_);
-  global_path_found_ = global_planner_->CalculatePath(20000);
+  global_path_found_ = global_planner_->CalculatePath(500000);
 
   if (global_path_found_) {
     std::cout << "[Navigation] Global path ready!" << std::endl;

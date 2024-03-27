@@ -63,8 +63,10 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
   visualization::DrawCross(goal_, 0.1, 0xb30b0b, viz_msg_);
 
   // Loop performing RRT* path planning algorithm
-  counter_ = 1;   // Exit condition if goal is unreachable
+  counter_ = 0;   // Exit condition if goal is unreachable
   while (counter_ < max_iterations && !goal_reached_) {
+    counter_++;
+
     // Sample a random point in the state space
     Eigen::Vector2f sampled_loc = SamplePoint(node_map_.at(0).loc, goal_);
 
@@ -104,11 +106,6 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
       ConstructPath(new_node);
       return goal_reached_;
     }
-
-    // std::cout << "Press Enter to continue... Size: " << counter_ << std::endl;
-    // std::cin.get();
-
-    counter_++;
   }
 
   std::cout << "[Global_Planner] Could not reach goal after " << counter_ << " iterations" << std::endl;
@@ -154,20 +151,14 @@ Node Global_Planner::FindClosestNode(const Eigen::Vector2f loc) {
 }
 
 bool Global_Planner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2) {
-  // Create line between node and its parent. Note we are checking two parallel lines that are very close to each other to handle the scenario where some corners of the map are not connected (there's a tiny gap)
-  // line2f line(
-  //   point1[0], point1[1], point2[0], point2[1]
-  // );
-
+  // Create line between node and its parent. Note we are checking two parallel lines that are very close to each other to handle the scenario where parts of the map are not connected (there's a tiny gap)
   float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
-
   float dx = collision_check_width_ / 2 * cos(90 - theta);
   float dy = collision_check_width_ / 2 * sin(90 - theta);
   line2f line1(point1[0] - dx, point1[1] + dy,
                point2[0] - dx, point2[1] + dy);
   line2f line2(point1[0] + dx, point1[1] - dy,
                point2[0] + dx, point2[1] - dy);
-  
 
   // Loop through map lines checking for instersections
   bool collision_flag = false;
@@ -247,9 +238,6 @@ void Global_Planner::OptimizePathToNode(Node* node) {
 
 void Global_Planner::ConstructPath(const Node goal_node) {
   unsigned int steps = 0;
-
-  // Restart visualization
-  // visualization::ClearVisualizationMsg(viz_msg_);
 
   // Draw goal
   visualization::DrawCross(goal_, 0.1, 0xb30b0b, viz_msg_);
