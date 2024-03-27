@@ -52,7 +52,7 @@ class Global_Planner {
 
     Node CreateChildNode(Node parent, const Eigen::Vector2f loc);
 
-    bool CheckMapCollision(Node node);
+    bool CheckMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2);
 
     void OptimizePathToNode(Node* node);
 

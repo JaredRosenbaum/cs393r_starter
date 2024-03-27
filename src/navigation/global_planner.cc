@@ -17,7 +17,7 @@ Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle*
   goal_reached_(false),
   graph_resolution_(0.3),
   sample_buffer_(5.0),
-  optimization_radius_(1.0) {
+  optimization_radius_(1.5) {
     node_map_.clear();
     viz_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
     viz_msg_ = visualization::NewVisualizationMessage(
@@ -74,21 +74,18 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
     Node new_node = CreateChildNode(closest_node, sampled_loc);
 
     // Check for any collisions with the map
-    bool map_collision = CheckMapCollision(new_node);
-    if (map_collision) {
+    if (CheckMapCollision(new_node.loc, node_map_.at(new_node.parent).loc)) {
       continue;   // obstacle found, retry!
     }
 
     // If possible, optimize path
-    // OptimizePathToNode(&new_node);
+    OptimizePathToNode(&new_node);
 
     // Finally, add node to the node_map
     node_map_.insert({new_node.id, new_node});
 
-    // visualization::DrawCross(sampled_loc, 0.05, 0x0d13bf, viz_msg_);
-    // visualization::DrawCross(new_node.loc, 0.1, 0x1ac211, viz_msg_);
     visualization::DrawPoint(new_node.loc, 0, viz_msg_);
-    visualization::DrawLine(closest_node.loc, new_node.loc, 0x1ac211, viz_msg_);
+    visualization::DrawLine(new_node.loc, node_map_.at(new_node.parent).loc, 0x1ac211, viz_msg_);
 
     viz_msg_.header.stamp = ros::Time::now();
     viz_pub_.publish(viz_msg_);
@@ -99,8 +96,8 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
       std::cout << "[Global_Planner] Reached goal after " << counter_ << " iterations" << std::endl;
       goal_reached_ = true;
 
-      std::cout << "Press Enter to continue..." << std::endl;
-      std::cin.get();
+      // std::cout << "Press Enter to continue..." << std::endl;
+      // std::cin.get();
 
       // Construct path to goal
       ConstructPath(new_node);
@@ -155,13 +152,14 @@ Node Global_Planner::FindClosestNode(const Eigen::Vector2f loc) {
   return closest_node;
 }
 
-bool Global_Planner::CheckMapCollision(Node node) {
+
+// TODO Make this function take two points, instead of a node. So we can use within optimize path
+bool Global_Planner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2) {
   bool collision_flag = false;
 
   // Create line between node and its parent
   line2f line(
-    node.loc[0], node.loc[1],
-    node_map_.at(node.parent).loc[0], node_map_.at(node.parent).loc[1]
+    point1[0], point1[1], point2[0], point2[1]
   );
 
   // Loop through map lines checking for instersections
@@ -201,35 +199,44 @@ Node Global_Planner::CreateChildNode(Node parent, const Eigen::Vector2f loc) {
 }
 
 void Global_Planner::OptimizePathToNode(Node* node) {
-  // float min_cost = node->cost;        // cost of current path
-  // unsigned int best_neighbor = node->parent->id;  // best neighbor for optimized path
+  float min_cost = node->cost;        // cost of current path
+  unsigned int best_neighbor = node->parent;  // current parent
 
-  // // Search for all neighbors within a set radius
-  // for (auto const& index : node_map_) {
-  //   Node neighbor = index.second;   // retrieve node from node_map
+  // Search for all neighbors within a set radius
+  for (auto const& index : node_map_) {
+    Node neighbor = index.second;   // retrieve node from node_map
 
-  //   // Calculate distance to neighbor and see if it is within optimization radius
-  //   float dist_to_neighbor = (node->loc - neighbor.loc).norm();
-  //   if (dist_to_neighbor < optimization_radius_) {
-  //     // Calculate new path cost and check if its the best option
-  //     float cost = neighbor.cost + dist_to_neighbor;
-  //     if (cost < min_cost) {
-  //       // Ensure there are no collision through an obstacle
-  //       best_neighbor = neighbor.id;
-  //       min_cost = cost;
-  //     }
-  //   }
-  // }
+    // Ignore oneself
+    if (neighbor.id == node->id) {
+      continue;
+    }
 
-  // // Update path based on new best neighbor, if different from current
-  // if (best_neighbor != node->parent->id) {
-  //   node->parent = &node_map_.at(best_neighbor);
-  //   node->cost = min_cost;
-  // }
+    // Calculate distance to neighbor and see if it is within optimization radius
+    float dist_to_neighbor = (node->loc - neighbor.loc).norm();
+    if (dist_to_neighbor < optimization_radius_) {
+      // Calculate new path cost and check if its the best option
+      float cost = neighbor.cost + dist_to_neighbor;
+      if (cost < min_cost) {
+
+        // Ensure this does not creates a collision with the map
+        if (!CheckMapCollision(node->loc, neighbor.loc)) {
+          // Update best neighbot
+          best_neighbor = neighbor.id;
+          min_cost = cost;
+        }
+      }
+    }
+  }
+
+  // Update path based on new best neighbor, if different from current
+  if (best_neighbor != node->parent) {
+    node->parent = best_neighbor;
+    node->cost = min_cost;
+  }
 }
 
 void Global_Planner::ConstructPath(const Node goal_node) {
-  unsigned int path_length = 0;
+  unsigned int steps = 0;
 
   // Restart visualization
   // visualization::ClearVisualizationMsg(viz_msg_);
@@ -246,12 +253,12 @@ void Global_Planner::ConstructPath(const Node goal_node) {
     
     path_.insert(path_.begin(), curr_node.loc);
     curr_node = node_map_.at(curr_node.parent);
-    path_length++;
+    steps++;
 
     viz_pub_.publish(viz_msg_);
   }
 
-  std::cout << "[Global_Planner] Constructed global path of length " << path_length << std::endl;
+  std::cout << "[Global_Planner] Constructed global path of length " << goal_node.cost << " with " << steps << " steps" << std::endl;
 }
 
 }
