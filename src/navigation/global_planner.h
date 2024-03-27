@@ -1,7 +1,7 @@
 //========================================================================
 /*!
-\file    global_planner.h
-\brief   TODO
+\file    global_planner.cc
+\brief   Global planner implementation based on the RRT*. This employs Rapidly Exploring Random Trees.
 \author  Daniel Meza, Jared Rosenbaum, Steven Swanbeck, (C) 2024
 */
 //========================================================================
@@ -10,6 +10,7 @@
 
 #include <vector>
 #include <map>
+// #include <cmath>
 #include <eigen3/Eigen/Dense>
 
 #include "ros/ros.h"
@@ -26,7 +27,7 @@ namespace global_planner {
 
 struct Node {
   unsigned int id;
-  unsigned int parent;    // TODO Could not figure out using Node*
+  unsigned int parent;
   Eigen::Vector2f loc;
   float cost;
 };
@@ -72,6 +73,7 @@ class Global_Planner {
     std::vector<Eigen::Vector2f> path_;   // Global path to goal
 
     float graph_resolution_;    // minimum distance between nodes
+    float collision_check_width_; // map has tiny gaps that need to be addressed when checking collisions
     std::map<unsigned int, Node> node_map_;   // Map of nodes
 
     float sample_buffer_;       // Search space buffer used for sampling random points

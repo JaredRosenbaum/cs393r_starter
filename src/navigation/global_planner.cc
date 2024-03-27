@@ -1,7 +1,7 @@
 //========================================================================
 /*!
 \file    global_planner.cc
-\brief   TODO
+\brief   Global planner implementation based on the RRT*. This employs Rapidly Exploring Random Trees.
 \author  Daniel Meza, Jared Rosenbaum, Steven Swanbeck, (C) 2024
 */
 //========================================================================
@@ -16,6 +16,7 @@ Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle*
   goal_threshold_(0.5),
   goal_reached_(false),
   graph_resolution_(0.3),
+  collision_check_width_(0.05),
   sample_buffer_(5.0),
   optimization_radius_(1.5) {
     node_map_.clear();
@@ -152,26 +153,35 @@ Node Global_Planner::FindClosestNode(const Eigen::Vector2f loc) {
   return closest_node;
 }
 
-
-// TODO Make this function take two points, instead of a node. So we can use within optimize path
 bool Global_Planner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2) {
-  bool collision_flag = false;
+  // Create line between node and its parent. Note we are checking two parallel lines that are very close to each other to handle the scenario where some corners of the map are not connected (there's a tiny gap)
+  // line2f line(
+  //   point1[0], point1[1], point2[0], point2[1]
+  // );
 
-  // Create line between node and its parent
-  line2f line(
-    point1[0], point1[1], point2[0], point2[1]
-  );
+  float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
+
+  float dx = collision_check_width_ / 2 * cos(90 - theta);
+  float dy = collision_check_width_ / 2 * sin(90 - theta);
+  line2f line1(point1[0] - dx, point1[1] + dy,
+               point2[0] - dx, point2[1] + dy);
+  line2f line2(point1[0] + dx, point1[1] - dy,
+               point2[0] + dx, point2[1] - dy);
+  
 
   // Loop through map lines checking for instersections
+  bool collision_flag = false;
   for (size_t j = 0; j < map_.lines.size(); ++j) {
     const line2f map_line = map_.lines[j];
 
     // Check for instersection
     Eigen::Vector2f intersection_point;
-    bool intersects = map_line.Intersection(line, &intersection_point);
+    // bool intersects = map_line.Intersection(line, &intersection_point);
+    bool intersects1 = map_line.Intersection(line1, &intersection_point);
+    bool intersects2 = map_line.Intersection(line2, &intersection_point);
 
     // Intersect found
-    if (intersects) {
+    if (intersects1 || intersects2) {
       collision_flag = true;
       break;
     }
