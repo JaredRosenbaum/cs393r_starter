@@ -46,7 +46,7 @@ void setPathOption(Path& path_option,
     path_option.curvature = curvature;
     float h {(robot_config.dimensions_.length_ + robot_config.dimensions_.wheelbase_) / 2}; // distance from base link to front bumper
     Vector2f projected_pos(0.0, 0.0);
-    float goal_distance = 0;
+    float goal_distance = goal.norm();
 
     if (curvature == 0) {
         // fpl
@@ -59,8 +59,9 @@ void setPathOption(Path& path_option,
         }
         // goal distance
         projected_pos.x() = robot_config.limits_.max_speed_ * TIME_STEP;
-        goal_distance = (goal-projected_pos).norm();
-        path_option.dist_to_goal = goal_distance;
+        float new_goal_dist = (goal-projected_pos).norm();
+        // goal_distance = (goal-projected_pos).norm();
+        path_option.dist_to_goal = goal_distance-new_goal_dist;
         // clearance
         for (auto p: point_cloud) {
             if (p[0] >=0 and p[0] < path_option.free_path_length) {
@@ -133,11 +134,12 @@ void setPathOption(Path& path_option,
     // }
     //. Distance to goal
     float radius {1.0f / curvature};
-    float phi_g = (robot_config.limits_.max_speed_ * TIME_STEP) / radius;
+    float phi_g = (robot_config.limits_.max_speed_ * TIME_STEP * 20) / radius;
     projected_pos.x() = radius * sin(phi_g);
     projected_pos.y() = radius - (radius * cos(phi_g));
-    goal_distance = (goal-projected_pos).norm();
-    path_option.dist_to_goal = goal_distance;
+    float new_goal_dist = (goal-projected_pos).norm();
+    // goal_distance = (goal-projected_pos).norm();
+    path_option.dist_to_goal = goal_distance-new_goal_dist;
 
     // clearance
     // path_option.clearance = 100; // some large number
@@ -191,7 +193,7 @@ float score(float free_path_length, float curvature, float clearance, float goal
     const float w1 = 1.0;
     const float w2 = 0;
     const float w3 = 0.1; //0.1;
-    const float w4 = -0.8;
+    const float w4 = 15;
     return w1 * free_path_length + w2 * abs(1/curvature) + w3 * clearance + w4 * goal_dist;
 }
 

@@ -85,6 +85,7 @@ Command Controller::generateCommand(const std::vector<Vector2f>& point_cloud, co
   paths = path_generation::samplePathOptions(N_PATHS, point_cloud, *car_, goal);
   int best_path_index {path_generation::selectPath(paths)};
   best_path = paths[best_path_index];
+  
 
   float speed {Controller::calculateControlSpeed(current_speed, paths[best_path_index].free_path_length)};
 
