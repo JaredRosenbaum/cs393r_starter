@@ -194,7 +194,8 @@ Vector2f SmoothedPlanner::interpolatePath(Vector2f robot_xy, float interpolation
             Vector2f point = a-((a-b)*(j/a_b_norm));
             // std::cout << point.transpose() << std::endl;
             // Check for intersection, if intersection free make goal
-            if (checkMapCollision(robot_xy, point) == false){
+            // if (checkMapCollision(robot_xy, point) == false){
+            if ((checkMapCollision(robot_xy, point) == false) && ((point-robot_xy).norm() <= stick_length_)){
                 // std::cout << "index: " << i << " far point: " << a.transpose() << " near point: " << b.transpose() << " interpolated point: " << point.transpose() << std::endl;
                 goal = point;
                 do_break = true;
