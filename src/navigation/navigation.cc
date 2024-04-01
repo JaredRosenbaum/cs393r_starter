@@ -99,6 +99,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
 
   //* instantiating the local planner
+  // Simple path for testing purposes
   for (int i = 0; i < 20; i++){
     Vector2f point(i, rand()%3);
     if (rand()%3 == 1){
@@ -106,7 +107,8 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
     }
     testing_path.push_back(point);
   }
-  carrot_planner_ = new local_planners::CarrotPlanner(STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
+  // carrot_planner_ = new local_planners::CarrotPlanner(STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
+  smoothed_planner_ = new local_planners::SmoothedPlanner(map_, STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
 
   // robot_config_ = NavigationParams();
   // +
@@ -173,9 +175,6 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
 
-  // TODO Remove
-  return;
-
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
@@ -197,24 +196,34 @@ void Navigation::Run() {
 
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
+  if (!global_path_found_) return;
 
   // . regular TOC
   // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
-  carrot_planner_->populatePath(testing_path);
+  testing_path = global_planner_->GetPath();
+  // carrot_planner_->populatePath(testing_path);
+  smoothed_planner_->populatePath(testing_path);
 
   //Temp visualization of path
-  for (std::size_t i=0; i<=testing_path.size()-1; i++){
+  for (std::size_t i=0; i<=testing_path.size()-2; i++){
         visualization::DrawLine(testing_path[i],testing_path[i+1],0x38114a,global_viz_msg_);
         visualization::DrawCross(testing_path[i],0.025,0x38114a,global_viz_msg_);
   }
 
-  Vector2f goal {carrot_planner_->feedCarrot(robot_loc_)};
+
+  // Vector2f goal {carrot_planner_->feedCarrot(robot_loc_)};
+  // if (carrot_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
+  // if (!carrot_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
+  Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, 0.1)};
+  if (smoothed_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
+  if (!smoothed_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
 
   visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
   // .Transform goal to robot frame
   goal -= robot_loc_;
-  goal.x() = goal.x()*cos(-robot_angle_) - goal.y()*sin(-robot_angle_);
-  goal.y() = goal.y()*cos(-robot_angle_) + goal.x()*sin(-robot_angle_);
+  Vector2f temp(goal.x(), goal.y());
+  goal.x() = temp.x()*cos(-robot_angle_) - temp.y()*sin(-robot_angle_);
+  goal.y() = temp.y()*cos(-robot_angle_) + temp.x()*sin(-robot_angle_);
   visualization::DrawCross(goal,0.25,0x38114a,local_viz_msg_);
 
   
@@ -264,6 +273,7 @@ void Navigation::Run() {
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
+  // drive_msg_.velocity = 0;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();

@@ -124,6 +124,7 @@ class Navigation {
   std::vector<Vector2f> testing_path;
 
   local_planners::CarrotPlanner *carrot_planner_;
+  local_planners::SmoothedPlanner *smoothed_planner_;
   // NavigationParams robot_config_;
   // +
 
