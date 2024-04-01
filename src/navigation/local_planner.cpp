@@ -147,36 +147,33 @@ bool SmoothedPlanner::planStillValid(Vector2f robot_xy){
 
 bool SmoothedPlanner::checkMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2) {
     //. Create line between node and its parent.
-    geometry::line2f line(point1[0], point1[1],
-                point2[0], point2[1]);
+    // geometry::line2f line(point1[0], point1[1],
+    //             point2[0], point2[1]);
     // Note: These seven lines allow for collision checks to have an added margin. Can be added later, but shouldn't be necessary
-    // float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
-    // float dx = collision_check_width_ / 2 * cos(90 - theta);
-    // float dy = collision_check_width_ / 2 * sin(90 - theta);
-    // line2f line1(point1[0] - dx, point1[1] + dy,
-    //             point2[0] - dx, point2[1] + dy);
-    // line2f line2(point1[0] + dx, point1[1] - dy,
-    //             point2[0] + dx, point2[1] - dy);
-
-
+    float collision_check_width_ = 0.5;
+    float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
+    float dx = collision_check_width_ / 2 * cos(90 - theta);
+    float dy = collision_check_width_ / 2 * sin(90 - theta);
+    line2f line1(point1[0] - dx, point1[1] + dy,
+                point2[0] - dx, point2[1] + dy);
+    line2f line2(point1[0] + dx, point1[1] - dy,
+                point2[0] + dx, point2[1] - dy);
     //. Loop through map lines checking for instersections
     bool collision_flag = false;
     for (size_t j = 0; j < map_.lines.size(); ++j) {
         const line2f map_line = map_.lines[j];
-
         //. Check for instersection
         Eigen::Vector2f intersection_point;
-        bool intersects = map_line.Intersection(line, &intersection_point);
-    // bool intersects1 = map_line.Intersection(line1, &intersection_point);
-    // bool intersects2 = map_line.Intersection(line2, &intersection_point);
+        // bool intersects = map_line.Intersection(line, &intersection_point);
+        bool intersects1 = map_line.Intersection(line1, &intersection_point);
+        bool intersects2 = map_line.Intersection(line2, &intersection_point);
 
     //. Intersection found
-        if (intersects) {
+        if (intersects1 || intersects2) {
             collision_flag = true;
             break;
         }
     }
-
     return collision_flag;
 }
 
@@ -191,25 +188,21 @@ Vector2f SmoothedPlanner::interpolatePath(Vector2f robot_xy, float interpolation
         Vector2f a = full_path_[i];
         Vector2f b = full_path_[i-1];
         float a_b_norm = (a-b).norm();
+        // std::cout << i << std::endl << std::endl;
         for (float j = 0; j<= a_b_norm; j+=interpolation_threshold){
             // Get point
-            Vector2f point = a-(b*j/a_b_norm);
+            Vector2f point = a-((a-b)*(j/a_b_norm));
+            // std::cout << point.transpose() << std::endl;
+            // Check for intersection, if intersection free make goal
             if (checkMapCollision(robot_xy, point) == false){
+                // std::cout << "index: " << i << " far point: " << a.transpose() << " near point: " << b.transpose() << " interpolated point: " << point.transpose() << std::endl;
                 goal = point;
                 do_break = true;
                 break;
             }
-            //Check for intersection, if intersection free make goal
         }
         if (do_break){break;}
-
-
     }
-    
-
-
     return goal;
 }
-
-
 }
