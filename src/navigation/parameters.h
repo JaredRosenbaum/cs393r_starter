@@ -18,5 +18,5 @@
 // Carrot planner values
 #define STICK_LENGTH                    10.0 // 5m
 #define GOAL_TOL                        1.0 // 0.25m
-#define PATH_DEV_TOL                    50.0 //1m
+#define PATH_DEV_TOL                    8.0 //1m
 //

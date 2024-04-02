@@ -150,7 +150,7 @@ bool SmoothedPlanner::checkMapCollision(const Eigen::Vector2f point1, const Eige
     geometry::line2f line(point1[0], point1[1],
                 point2[0], point2[1]);
     // Note: These seven lines allow for collision checks to have an added margin. Can be added later, but shouldn't be necessary
-    float collision_check_width_ = 0.5;
+    float collision_check_width_ = 0.15;
     float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
     float dx = collision_check_width_ / 2 * cos(90 - theta);
     float dy = collision_check_width_ / 2 * sin(90 - theta);

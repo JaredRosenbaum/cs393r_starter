@@ -180,13 +180,6 @@ void Navigation::Run() {
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
 
-
-  // Visualize pointcloud
-  // for (int i = 0; i < (int)point_cloud_.size(); i++) {
-  //   Vector2f p = point_cloud_[i];
-  //   visualization::DrawCross(p, 0.01, 0, local_viz_msg_);
-  // }
-
   // Visualize car
   visualization::DrawRectangle(Vector2f(car_->dimensions_.wheelbase_/2, 0),
       car_->dimensions_.length_, car_->dimensions_.width_, 0, 0x00FF00, local_viz_msg_);
@@ -268,7 +261,7 @@ void Navigation::Run() {
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
-  drive_msg_.velocity = 0;
+  // drive_msg_.velocity = 0;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
