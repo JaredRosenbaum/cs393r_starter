@@ -48,7 +48,7 @@ void setPathOption(Path& path_option,
     Vector2f projected_pos(0.0, 0.0);
     float goal_distance = goal.norm();
 
-    if (curvature == 0) {
+    if (std::abs(curvature) <= std::abs(0.01)) {
         // fpl
         for (auto p: point_cloud) {
             if (robot_config.dimensions_.width_ / 2 + CAR_MARGIN >= abs(p[1])
@@ -63,15 +63,19 @@ void setPathOption(Path& path_option,
         // goal_distance = (goal-projected_pos).norm();
         path_option.dist_to_goal = goal_distance-new_goal_dist;
         // clearance
-        for (auto p: point_cloud) {
+        for (const auto &p: point_cloud) {
             if (p[0] >=0 and p[0] < path_option.free_path_length) {
                 float clearance_p = abs(p[1]) - robot_config.dimensions_.width_ / 2 - CAR_MARGIN;
                 if (clearance_p < path_option.clearance) {
+                    
+                    std::cout << p.transpose() << "\t" << robot_config.dimensions_.width_ << "\t" << CAR_MARGIN << "\t" << path_option.clearance << "\t" << clearance_p << std::endl;
+                    
                     path_option.clearance = clearance_p;
                     path_option.closest_point = p;
                 }
             }
         }
+        std::cout << "-----" << std::endl;
         return;
     }
 
@@ -180,7 +184,7 @@ std::vector<Path> samplePathOptions(int num_options,
             curvature = -curvature;
         }
         
-        Path path_option;
+        Path path_option(0, 10, 10, 20);
         setPathOption(path_option, curvature, point_cloud, robot_config, goal);
         path_options.push_back(path_option);
     }
@@ -210,6 +214,9 @@ int selectPath(const std::vector<Path>& path_options) {
             selected_path = i;
         }
     }
+
+    // std::cout << path_options[selected_path].free_path_length << "\t" << path_options[selected_path].curvature << "\t" << path_options[selected_path].clearance << "\t" << path_options[selected_path].dist_to_goal << std::endl;
+
     return selected_path;
 }
 

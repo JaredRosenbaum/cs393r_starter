@@ -20,6 +20,19 @@ struct Path {
   Eigen::Vector2f obstruction = Eigen::Vector2f::Zero();
   Eigen::Vector2f closest_point = Eigen::Vector2f::Zero();
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  Path() {
+    curvature = 0;
+    clearance = 10;
+    free_path_length = 10;
+    dist_to_goal = 20;
+  }
+
+  Path(float curv, float clear, float fpl, float dist) :
+    curvature(curv),
+    clearance(clear),
+    free_path_length(fpl),
+    dist_to_goal(dist) {}
 };
 
 // float run1DTimeOptimalControl(float dist_to_go, float current_speed, const NavigationParams& nav_params);

@@ -100,13 +100,13 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
 
   //* instantiating the local planner
   // Simple path for testing purposes
-  for (int i = 0; i < 20; i++){
-    Vector2f point(i, rand()%3);
-    if (rand()%3 == 1){
-      point.y() *= -1;
-    }
-    testing_path.push_back(point);
-  }
+  // for (int i = 0; i < 20; i++){
+  //   Vector2f point(i, rand()%3);
+  //   if (rand()%3 == 1){
+  //     point.y() *= -1;
+  //   }
+  //   testing_path.push_back(point);
+  // }
   // carrot_planner_ = new local_planners::CarrotPlanner(STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
   smoothed_planner_ = new local_planners::SmoothedPlanner(map_, STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
 
@@ -115,6 +115,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
 
   // instantiate a global planner
   global_planner_ = new global_planner::Global_Planner(map_, n);
+  global_path_found_ = false;
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
@@ -210,7 +211,6 @@ void Navigation::Run() {
         visualization::DrawCross(testing_path[i],0.025,0x38114a,global_viz_msg_);
   }
 
-
   // Vector2f goal {carrot_planner_->feedCarrot(robot_loc_)};
   // if (carrot_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
   // if (!carrot_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
@@ -225,16 +225,11 @@ void Navigation::Run() {
   goal.x() = temp.x()*cos(-robot_angle_) - temp.y()*sin(-robot_angle_);
   goal.y() = temp.y()*cos(-robot_angle_) + temp.x()*sin(-robot_angle_);
   visualization::DrawCross(goal,0.25,0x38114a,local_viz_msg_);
-
   
   // . with latency compensation
   path_generation::Path best_path;
   std::vector<path_generation::Path> path_options;
   controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path, goal)};
-
-
-
-
 
   // std::cout << "==========" << std::endl;
   // std::cout << "\tCurv: " << best_path.curvature << "\tFpl: " << best_path.free_path_length << "\tClr: " << best_path.clearance << std::endl;
@@ -273,7 +268,7 @@ void Navigation::Run() {
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
-  // drive_msg_.velocity = 0;
+  drive_msg_.velocity = 0;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();
