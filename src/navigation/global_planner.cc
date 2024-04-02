@@ -88,7 +88,7 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
     node_map_.insert({new_node.id, new_node});
 
     visualization::DrawPoint(new_node.loc, 0, viz_msg_);
-    visualization::DrawLine(new_node.loc, node_map_.at(new_node.parent).loc, 0x1ac211, viz_msg_);
+    visualization::DrawLine(new_node.loc, node_map_.at(new_node.parent).loc, 0xb1edad, viz_msg_);
 
     viz_msg_.header.stamp = ros::Time::now();
     viz_pub_.publish(viz_msg_);
@@ -184,10 +184,16 @@ bool Global_Planner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen
 Node Global_Planner::CreateChildNode(Node parent, const Eigen::Vector2f loc) {
   // Calculate the projection in the direction from parent node to loc
   Eigen::Vector2f vect = (loc - parent.loc);
-  Eigen::Vector2f proj(
-    graph_resolution_ / vect.norm() * vect[0],
-    graph_resolution_ / vect.norm() * vect[1]
-  );
+  Eigen::Vector2f proj;
+  if (vect.norm() > graph_resolution_) {
+    // Location is far, project forward by a bit
+    proj[0] = graph_resolution_ / vect.norm() * vect[0];
+    proj[1] = graph_resolution_ / vect.norm() * vect[1];
+  }
+  else {
+    // Location is close, use as is
+    proj = loc;
+  }
 
   // Create new child node
   Node node;
@@ -247,7 +253,7 @@ void Global_Planner::ConstructPath(const Node goal_node) {
   while (curr_node.id > 0) {   // Note that the initial node will not get added as the robot is already at that location
     // Draw path segment
     visualization::DrawPoint(curr_node.loc, 0, viz_msg_);
-    visualization::DrawLine(curr_node.loc, node_map_.at(curr_node.parent).loc, 0x0d13bf, viz_msg_);
+    visualization::DrawLine(curr_node.loc, node_map_.at(curr_node.parent).loc, 0, viz_msg_);
     
     path_.insert(path_.begin(), curr_node.loc);
     curr_node = node_map_.at(curr_node.parent);
