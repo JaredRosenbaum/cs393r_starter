@@ -201,7 +201,7 @@ std::vector<Path> samplePathOptions(int num_options,
 
 
 float score(float free_path_length, float curvature, float clearance, float goal_dist) {
-    const float w1 = 1.0;
+    const float w1 = 0.5;
     const float w2 = 0;
     const float w3 = 0.3; //0.1;
     const float w4 = 2.5;

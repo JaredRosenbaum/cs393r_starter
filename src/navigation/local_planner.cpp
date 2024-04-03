@@ -156,7 +156,7 @@ bool SmoothedPlanner::checkMapCollision(const Eigen::Vector2f point1, const Eige
                 point2[0], point2[1]);
     // Note: These seven lines allow for collision checks to have an added margin. Can be added later, but shouldn't be necessary
     float collision_check_width_ = 1.f; //  0.15;
-    float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
+    float theta = atan2((point2[1] - point1[1]), (point2[0] - point1[0]));
     // float dx = collision_check_width_ / 2 * cos(M_PI / 2 - theta);
     // float dy = collision_check_width_ / 2 * sin(M_PI / 2 - theta);
     float dx {collision_check_width_ / 2 * sin(theta)};
@@ -203,13 +203,16 @@ Vector2f SmoothedPlanner::interpolatePath(Vector2f robot_xy, float interpolation
             Vector2f point = a-((a-b)*(j/a_b_norm));
             // std::cout << point.transpose() << std::endl;
             // Check for intersection, if intersection free make goal
-            // if (checkMapCollision(robot_xy, point) == false){
-            if ((checkMapCollision(robot_xy, point, l1, l2) == false) && ((point-robot_xy).norm() <= stick_length_)){
-                // std::cout << "index: " << i << " far point: " << a.transpose() << " near point: " << b.transpose() << " interpolated point: " << point.transpose() << std::endl;
-                goal = point;
-                do_break = true;
-                break;
+            // 9if (checkMapCollision(robot_xy, point) == false){
+            if ((point-robot_xy).norm() <= stick_length_) {
+                if (checkMapCollision(robot_xy, point, l1, l2) == false){
+                    // std::cout << "index: " << i << " far point: " << a.transpose() << " near point: " << b.transpose() << " interpolated point: " << point.transpose() << std::endl;
+                    goal = point;
+                    do_break = true;
+                    break;
+                }
             }
+            
         }
         if (do_break){break;}
     }

@@ -176,6 +176,8 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 void Navigation::Run() {
   // This function gets called 20 times a second to form the control loop.
 
+  // std::cin.get();
+
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
@@ -235,9 +237,6 @@ void Navigation::Run() {
   std::vector<path_generation::Path> path_options;
   Eigen::Vector2f global_goal {testing_path[testing_path.size() - 1] - robot_loc_};
   controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path, goal, global_goal)};
-
-
-  std::cout << atan2(10, 0) << std::endl;
 
   // std::cout << "==========" << std::endl;
   // std::cout << "\tCurv: " << best_path.curvature << "\tFpl: " << best_path.free_path_length << "\tClr: " << best_path.clearance << std::endl;
