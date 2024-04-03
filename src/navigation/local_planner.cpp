@@ -106,9 +106,14 @@ void SmoothedPlanner::populatePath(std::vector<Vector2f> path){
     return;
 }
 
+//todo should this use full_path's final entry instead?
 bool SmoothedPlanner::reachedGoal(Vector2f robot_xy, Vector2f goal_xy){
+    if (!init) {
+        ROS_ERROR("No path!");
+        return false;
+    }
     //. Calculate the distance from the robot to the goal
-    Vector2f to_goal = goal_xy - robot_xy;
+    Vector2f to_goal = full_path_[full_path_.size()-1] - robot_xy;
     float goal_dist = to_goal.norm();
     //. Decide if the robot should continue to move
     if (goal_dist > goal_tolerance_){

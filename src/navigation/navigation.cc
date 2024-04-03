@@ -211,7 +211,13 @@ void Navigation::Run() {
   geometry::line2f l2;
   Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, 0.1, l1, l2)};
   if (smoothed_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
-  if (!smoothed_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
+  if (!smoothed_planner_->planStillValid(robot_loc_)) {
+    global_path_found_ = false;
+    global_planner_->ClearPath();
+    global_planner_->SetRobotLocation(robot_loc_);
+    global_planner_->SetGoalLocation(nav_goal_loc_);
+    global_path_found_ = global_planner_->CalculatePath(500000);
+  }
 
   visualization::DrawLine(l1.p0, l1.p1, 0xF633FF, global_viz_msg_);
   visualization::DrawLine(l2.p0, l2.p1, 0xF633FF, global_viz_msg_);

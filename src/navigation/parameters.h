@@ -17,6 +17,6 @@
 #define MAX_CLEARANCE                   0.5 //0.5     // m
 // Carrot planner values
 #define STICK_LENGTH                    10.0 // 5m
-#define GOAL_TOL                        0.15 // 0.25m
-#define PATH_DEV_TOL                    8.0 //1m
+#define GOAL_TOL                        0.3 // 0.25m
+#define PATH_DEV_TOL                    5.0 //1m
 //
