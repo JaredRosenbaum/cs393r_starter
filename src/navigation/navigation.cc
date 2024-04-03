@@ -209,7 +209,13 @@ void Navigation::Run() {
   // if (!carrot_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
   Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, 0.1)};
   if (smoothed_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
-  if (!smoothed_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
+  if (!smoothed_planner_->planStillValid(robot_loc_)) {
+    global_path_found_ = false;
+    global_planner_->ClearPath();
+    global_planner_->SetRobotLocation(robot_loc_);
+    global_planner_->SetGoalLocation(nav_goal_loc_);
+    global_path_found_ = global_planner_->CalculatePath(500000);
+  }
 
   visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
   // .Transform goal to robot frame
