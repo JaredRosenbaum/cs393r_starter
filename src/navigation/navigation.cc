@@ -207,9 +207,14 @@ void Navigation::Run() {
   // Vector2f goal {carrot_planner_->feedCarrot(robot_loc_)};
   // if (carrot_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
   // if (!carrot_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
-  Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, 0.1)};
+  geometry::line2f l1;
+  geometry::line2f l2;
+  Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, 0.1, l1, l2)};
   if (smoothed_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
   if (!smoothed_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
+
+  visualization::DrawLine(l1.p0, l1.p1, 0xF633FF, global_viz_msg_);
+  visualization::DrawLine(l2.p0, l2.p1, 0xF633FF, global_viz_msg_);
 
   visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
   // .Transform goal to robot frame
@@ -222,7 +227,11 @@ void Navigation::Run() {
   // . with latency compensation
   path_generation::Path best_path;
   std::vector<path_generation::Path> path_options;
-  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path, goal)};
+  Eigen::Vector2f global_goal {testing_path[testing_path.size() - 1] - robot_loc_};
+  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path, goal, global_goal)};
+
+
+  std::cout << atan2(10, 0) << std::endl;
 
   // std::cout << "==========" << std::endl;
   // std::cout << "\tCurv: " << best_path.curvature << "\tFpl: " << best_path.free_path_length << "\tClr: " << best_path.clearance << std::endl;

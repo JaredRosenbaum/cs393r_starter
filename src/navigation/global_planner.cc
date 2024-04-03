@@ -13,7 +13,7 @@ namespace global_planner {
 Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n) :
   map_(map),
   goal_(0, 0),
-  goal_threshold_(0.5),
+  goal_threshold_(0.25),
   goal_reached_(false),
   graph_resolution_(0.3),
   collision_check_width_(0.05),
@@ -153,8 +153,8 @@ Node Global_Planner::FindClosestNode(const Eigen::Vector2f loc) {
 bool Global_Planner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2) {
   // Create line between node and its parent. Note we are checking two parallel lines that are very close to each other to handle the scenario where parts of the map are not connected (there's a tiny gap)
   float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
-  float dx = collision_check_width_ / 2 * cos(90 - theta);
-  float dy = collision_check_width_ / 2 * sin(90 - theta);
+  float dx = collision_check_width_ / 2 * cos(M_PI / 2 - theta);
+  float dy = collision_check_width_ / 2 * sin(M_PI / 2 - theta);
   line2f line1(point1[0] - dx, point1[1] + dy,
                point2[0] - dx, point2[1] + dy);
   line2f line2(point1[0] + dx, point1[1] - dy,
