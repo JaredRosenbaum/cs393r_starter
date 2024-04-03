@@ -114,7 +114,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   // +
 
   // instantiate a global planner
-  global_planner_ = new global_planner::Global_Planner(map_, n);
+  global_planner_ = new global_planner::Global_Planner(map_, n, GOAL_THRESHOLD, GRAPH_RESOLUTION, COLLISION_PROXIMITY, SAMPLE_BUFFER, OPTIMIZATION_RADIUS);
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
@@ -131,7 +131,7 @@ void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
   // Calculate global path from planner
   global_planner_->SetRobotLocation(robot_loc_);
   global_planner_->SetGoalLocation(nav_goal_loc_);
-  global_path_found_ = global_planner_->CalculatePath(500000);
+  global_path_found_ = global_planner_->CalculatePath(MAX_SAMPLING_ITERATIONS);
 
   if (global_path_found_) {
     std::cout << "[Navigation] Global path ready!" << std::endl;
@@ -178,7 +178,6 @@ void Navigation::Run() {
   // Clear previous visualizations.
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
-
 
   // Visualize pointcloud
   // for (int i = 0; i < (int)point_cloud_.size(); i++) {
