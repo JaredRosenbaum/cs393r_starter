@@ -16,9 +16,26 @@ Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle*
   goal_threshold_(0.25),
   goal_reached_(false),
   graph_resolution_(0.3),
-  collision_check_width_(0.05),
+  // narrow_collision_width_(0.05),
+  collision_proximity_(0.1),
   sample_buffer_(5.0),
   optimization_radius_(1.5) {
+    node_map_.clear();
+    viz_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
+    viz_msg_ = visualization::NewVisualizationMessage(
+      "map", "global_planner");
+  }
+
+Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n, const float goal_threshold, const float graph_resolution, const float collision_proximity, const float sample_buffer, const float optimization_radius) :
+  map_(map),
+  goal_(0, 0),
+  goal_threshold_(goal_threshold),
+  goal_reached_(false),
+  graph_resolution_(graph_resolution),
+  // narrow_collision_width_(0.05),
+  collision_proximity_(collision_proximity),
+  sample_buffer_(sample_buffer),
+  optimization_radius_(optimization_radius) {
     node_map_.clear();
     viz_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
     viz_msg_ = visualization::NewVisualizationMessage(
@@ -151,28 +168,54 @@ Node Global_Planner::FindClosestNode(const Eigen::Vector2f loc) {
 }
 
 bool Global_Planner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2) {
-  // Create line between node and its parent. Note we are checking two parallel lines that are very close to each other to handle the scenario where parts of the map are not connected (there's a tiny gap)
-  float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
-  float dx = collision_check_width_ / 2 * cos(M_PI / 2 - theta);
-  float dy = collision_check_width_ / 2 * sin(M_PI / 2 - theta);
-  line2f line1(point1[0] - dx, point1[1] + dy,
-               point2[0] - dx, point2[1] + dy);
-  line2f line2(point1[0] + dx, point1[1] - dy,
-               point2[0] + dx, point2[1] - dy);
+  // Create line between node and its parent.
+  line2f line(point1[0], point1[1],
+              point2[0], point2[1]);
 
-  // Loop through map lines checking for instersections
+  // Note we are also checking two parallel lines that are very close to each other to handle the scenario where parts of the map are not connected (there's a tiny gap)
+  // float theta = atan2((point2[1] - point1[1]), (point2[2] - point1[2]));
+  // float dx = narrow_collision_width_ / 2 * cos(90 - theta);
+  // float dy = narrow_collision_width_ / 2 * sin(90 - theta);
+  // line2f line1(point1[0] - dx, point1[1] + dy,
+  //              point2[0] - dx, point2[1] + dy);
+  // line2f line2(point1[0] + dx, point1[1] - dy,
+  //              point2[0] + dx, point2[1] - dy);
+
+  // Loop through map lines checking for instersections and proximity
   bool collision_flag = false;
   for (size_t j = 0; j < map_.lines.size(); ++j) {
+    // Retrieve map line
     const line2f map_line = map_.lines[j];
+
+    // Extend the line by the collision proximity
+    float dx_ext = (map_line.p1[0] - map_line.p0[0]) * collision_proximity_ / (map_line.p1 - map_line.p0).norm();
+    float dy_ext = (map_line.p1[1] - map_line.p0[1]) * collision_proximity_ / (map_line.p1 - map_line.p0).norm();
+    line2f map_line_ext(map_line.p0[0] - dx_ext, map_line.p0[1] - dy_ext,
+                           map_line.p1[0] + dx_ext, map_line.p1[1] + dy_ext);
+
+    // Create a perimeter around the line to check for proximity to obstacles
+    float theta = atan2((map_line.p1[1] - map_line.p0[1]), (map_line.p1[0] - map_line.p0[0]));
+    float dx_per = collision_proximity_ * cos(M_PI / 2 - theta);
+    float dy_per = collision_proximity_ * sin(M_PI / 2 - theta);
+    line2f map_line_1(map_line_ext.p0[0] - dx_per, map_line_ext.p0[1] + dy_per,
+                      map_line_ext.p1[0] - dx_per, map_line_ext.p1[1] + dy_per);
+    line2f map_line_2(map_line_ext.p0[0] + dx_per, map_line_ext.p0[1] - dy_per,
+                      map_line_ext.p1[0] + dx_per, map_line_ext.p1[1] - dy_per);
+    line2f map_line_3(map_line_ext.p0[0] - dx_per, map_line_ext.p0[1] + dy_per,
+                      map_line_ext.p0[0] + dx_per, map_line_ext.p0[1] - dy_per);
+    line2f map_line_4(map_line_ext.p1[0] - dx_per, map_line_ext.p1[1] + dy_per,
+                      map_line_ext.p1[0] + dx_per, map_line_ext.p1[1] - dy_per);
 
     // Check for instersection
     Eigen::Vector2f intersection_point;
     // bool intersects = map_line.Intersection(line, &intersection_point);
-    bool intersects1 = map_line.Intersection(line1, &intersection_point);
-    bool intersects2 = map_line.Intersection(line2, &intersection_point);
+    bool intersects_1 = map_line_1.Intersection(line, &intersection_point);
+    bool intersects_2 = map_line_2.Intersection(line, &intersection_point);
+    bool intersects_3 = map_line_3.Intersection(line, &intersection_point);
+    bool intersects_4 = map_line_4.Intersection(line, &intersection_point);
 
     // Intersect found
-    if (intersects1 || intersects2) {
+    if (intersects_1 || intersects_2 || intersects_3 || intersects_4) {
       collision_flag = true;
       break;
     }

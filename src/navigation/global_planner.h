@@ -36,6 +36,8 @@ class Global_Planner {
   public:
     Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n);
 
+    Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n, const float goal_threshold, const float graph_resolution, const float collision_proximity, const float sample_buffer, const float optimization_radius);
+
     void ClearPath(void);
 
     void SetRobotLocation(const Eigen::Vector2f loc);
@@ -73,7 +75,8 @@ class Global_Planner {
     std::vector<Eigen::Vector2f> path_;   // Global path to goal
 
     float graph_resolution_;    // minimum distance between nodes
-    float collision_check_width_; // map has tiny gaps that need to be addressed when checking collisions
+    // float narrow_collision_width_; // map has tiny gaps that need to be addressed when checking collisions
+    float collision_proximity_;  // nodes should be a distance away from the map lines
     std::map<unsigned int, Node> node_map_;   // Map of nodes
 
     float sample_buffer_;       // Search space buffer used for sampling random points
