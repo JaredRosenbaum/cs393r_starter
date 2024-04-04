@@ -304,7 +304,8 @@ void Global_Planner::ConstructPath(const Node goal_node) {
 
     viz_pub_.publish(viz_msg_);
   }
-
+  path_.insert(path_.begin(), node_map_.at(0).loc);
+  path_.push_back(goal_);
   std::cout << "[Global_Planner] Constructed global path of length " << goal_node.cost << " with " << steps << " steps" << std::endl;
 }
 

@@ -212,7 +212,10 @@ void Navigation::Run() {
   geometry::line2f l1;
   geometry::line2f l2;
   Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, 0.1, l1, l2)};
-  if (smoothed_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
+  if (smoothed_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {
+    std::cout << (robot_loc_-nav_goal_loc_).norm() << std::endl;
+    global_path_found_ = false;
+  }
   if (!smoothed_planner_->planStillValid(robot_loc_)) {
     global_path_found_ = false;
     global_planner_->ClearPath();

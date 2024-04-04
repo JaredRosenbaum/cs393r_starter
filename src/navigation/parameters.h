@@ -20,7 +20,7 @@
 #define GOAL_TOL                        0.3 // 0.25m
 #define PATH_DEV_TOL                    3.0 //1m
 // RRT* Global Planner values
-#define GOAL_THRESHOLD                  0.2
+#define GOAL_THRESHOLD                  0.375
 #define GRAPH_RESOLUTION                0.2
 #define COLLISION_PROXIMITY             (CAR_WIDTH / 2) + CAR_MARGIN
 #define SAMPLE_BUFFER                   5.0
