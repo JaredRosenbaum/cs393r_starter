@@ -132,13 +132,32 @@ bool SmoothedPlanner::planStillValid(Vector2f robot_xy){
     }
     //. Is the robot within a tolerance of any point on the path?
     bool near_path = false;
-    for (int i = full_path_.size()-1; i >= 0; i--){
-        Vector2f to_edge = full_path_[i] - robot_xy;
-        float edge_dist = to_edge.norm();
-        if (edge_dist <= deviation_tolerance_){
-            near_path = true;
+
+
+
+    for (int i = full_path_.size()-1; i > 0; i--){
+        Vector2f a = full_path_[i];
+        Vector2f b = full_path_[i-1];
+        float a_b_norm = (a-b).norm();
+        // std::cout << i << std::endl << std::endl;
+        for (float j = 0; j<= a_b_norm; j+=0.25){
+            // Get point
+            Vector2f point = a-((a-b)*(j/a_b_norm));
+            Vector2f to_edge = point - robot_xy;
+            float edge_dist = to_edge.norm();
+            if (edge_dist <= deviation_tolerance_){
+                near_path = true;
+            }
         }
     }
+
+    // for (int i = full_path_.size()-1; i >= 0; i--){
+    //     Vector2f to_edge = full_path_[i] - robot_xy;
+    //     float edge_dist = to_edge.norm();
+    //     if (edge_dist <= deviation_tolerance_){
+    //         near_path = true;
+    //     }
+    // }
     //. If yes, continue to plan!
     if (near_path){
         return true;

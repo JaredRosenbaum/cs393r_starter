@@ -18,7 +18,7 @@
 // Carrot planner values
 #define STICK_LENGTH                    10.0 // 5m
 #define GOAL_TOL                        0.3 // 0.25m
-#define PATH_DEV_TOL                    3.0 //1m
+#define PATH_DEV_TOL                    2.0 //1m
 // RRT* Global Planner values
 #define GOAL_THRESHOLD                  0.375
 #define GRAPH_RESOLUTION                0.2
