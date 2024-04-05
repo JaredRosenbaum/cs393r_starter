@@ -17,12 +17,12 @@
 #define MAX_CLEARANCE                   0.5 //0.5     // m
 // Carrot planner values
 #define STICK_LENGTH                    10.0 // 5m
-#define GOAL_TOL                        1.0 // 0.25m
-#define PATH_DEV_TOL                    50.0 //1m
+#define GOAL_TOL                        0.3 // 1m
+#define PATH_DEV_TOL                    2.0 // 2m
 // RRT* Global Planner values
-#define GOAL_THRESHOLD                  0.2
+#define GOAL_THRESHOLD                  0.375
 #define GRAPH_RESOLUTION                0.2
 #define COLLISION_PROXIMITY             (CAR_WIDTH / 2) + CAR_MARGIN
 #define SAMPLE_BUFFER                   5.0
-#define OPTIMIZATION_RADIUS             1.5
+#define OPTIMIZATION_RADIUS             5.0
 #define MAX_SAMPLING_ITERATIONS         500000

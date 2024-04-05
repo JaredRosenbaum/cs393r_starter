@@ -42,16 +42,18 @@ namespace path_generation {
 void setPathOption(Path& path_option,
                         float curvature, const std::vector<Eigen::Vector2f>& point_cloud,
                         const vehicles::Car& robot_config,
-                        const Vector2f goal) {
+                        const Vector2f goal,
+                        const Vector2f global_goal) {
     path_option.curvature = curvature;
     float h {(robot_config.dimensions_.length_ + robot_config.dimensions_.wheelbase_) / 2}; // distance from base link to front bumper
     Vector2f projected_pos(0.0, 0.0);
     float goal_distance = goal.norm();
+    float global_goal_distance = global_goal.norm();
 
-    if (curvature == 0) {
+    if (std::abs(curvature) <= std::abs(0.01)) {
         // fpl
         for (auto p: point_cloud) {
-            if (robot_config.dimensions_.width_ / 2 + CAR_MARGIN >= abs(p[1])
+            if (robot_config.dimensions_.width_ / 2 + CAR_MARGIN >= std::abs(p[1])
                 && p[0] < path_option.free_path_length) {
                 path_option.free_path_length = p[0] - h - CAR_MARGIN;
                 path_option.obstruction = p;
@@ -62,10 +64,14 @@ void setPathOption(Path& path_option,
         float new_goal_dist = (goal-projected_pos).norm();
         // goal_distance = (goal-projected_pos).norm();
         path_option.dist_to_goal = goal_distance-new_goal_dist;
+        // Cap free path length when approaching the goal
+        if (global_goal_distance < path_option.free_path_length) {
+            path_option.free_path_length = global_goal_distance;
+        }
         // clearance
-        for (auto p: point_cloud) {
+        for (const auto &p: point_cloud) {
             if (p[0] >=0 and p[0] < path_option.free_path_length) {
-                float clearance_p = abs(p[1]) - robot_config.dimensions_.width_ / 2 - CAR_MARGIN;
+                float clearance_p = std::abs(p[1]) - robot_config.dimensions_.width_ / 2 - CAR_MARGIN;
                 if (clearance_p < path_option.clearance) {
                     path_option.clearance = clearance_p;
                     path_option.closest_point = p;
@@ -140,7 +146,10 @@ void setPathOption(Path& path_option,
     float new_goal_dist = (goal-projected_pos).norm();
     // goal_distance = (goal-projected_pos).norm();
     path_option.dist_to_goal = goal_distance-new_goal_dist;
-
+    // Cap free path length when approaching the goal
+    if (global_goal_distance < path_option.free_path_length) {
+        path_option.free_path_length = global_goal_distance;
+    }
     // clearance
     // path_option.clearance = 100; // some large number
     for (auto p: point_cloud) {
@@ -148,8 +157,8 @@ void setPathOption(Path& path_option,
             atan2(p[0], c[1] - p[1]);
         float path_len_p = theta_p * (p-c).norm();
         if (path_len_p >=0 and path_len_p < path_option.free_path_length) {  // if p is within the fp length
-            float inner = abs((c - p).norm() - r_inner);
-            float outer = abs((c - p).norm() - r_tr);
+            float inner = std::abs((c - p).norm() - r_inner);
+            float outer = std::abs((c - p).norm() - r_tr);
             float clearance_p = std::min(inner, outer);
             if (clearance_p < path_option.clearance) {
                 path_option.clearance = clearance_p;
@@ -168,7 +177,8 @@ void setPathOption(Path& path_option,
 std::vector<Path> samplePathOptions(int num_options,
                                                     const std::vector<Eigen::Vector2f>& point_cloud,
                                                     const vehicles::Car &robot_config,
-                                                    const Vector2f goal) {
+                                                    const Vector2f goal,
+                                                    const Vector2f global_goal) {
     static std::vector<Path> path_options;
     path_options.clear();
     float max_curvature = robot_config.limits_.max_curvature_;
@@ -181,7 +191,7 @@ std::vector<Path> samplePathOptions(int num_options,
         }
         
         Path path_option;
-        setPathOption(path_option, curvature, point_cloud, robot_config, goal);
+        setPathOption(path_option, curvature, point_cloud, robot_config, goal, global_goal);
         path_options.push_back(path_option);
     }
     // exit(0);
@@ -190,11 +200,11 @@ std::vector<Path> samplePathOptions(int num_options,
 
 
 float score(float free_path_length, float curvature, float clearance, float goal_dist) {
-    const float w1 = 1.0;
+    const float w1 = 0.75; //1.0;
     const float w2 = 0;
-    const float w3 = 0.1; //0.1;
-    const float w4 = 15;
-    return w1 * free_path_length + w2 * abs(1/curvature) + w3 * clearance + w4 * goal_dist;
+    const float w3 = 0.3; //0.1;
+    const float w4 = 5.0; //15;
+    return w1 * free_path_length + w2 * std::abs(1/curvature) + w3 * clearance + w4 * goal_dist;
 }
 
 // returns the index of the selected path

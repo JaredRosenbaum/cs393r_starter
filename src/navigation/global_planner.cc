@@ -105,7 +105,7 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
     node_map_.insert({new_node.id, new_node});
 
     visualization::DrawPoint(new_node.loc, 0, viz_msg_);
-    visualization::DrawLine(new_node.loc, node_map_.at(new_node.parent).loc, 0xb1edad, viz_msg_);
+    visualization::DrawLine(new_node.loc, node_map_.at(new_node.parent).loc, 0xccf2c9, viz_msg_);
 
     viz_msg_.header.stamp = ros::Time::now();
     viz_pub_.publish(viz_msg_);
@@ -288,12 +288,16 @@ void Global_Planner::OptimizePathToNode(Node* node) {
 void Global_Planner::ConstructPath(const Node goal_node) {
   unsigned int steps = 0;
 
+  // Clear the search tree after a slight delay
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  visualization::ClearVisualizationMsg(viz_msg_);
+
   // Draw goal
   visualization::DrawCross(goal_, 0.1, 0xb30b0b, viz_msg_);
 
   // Loop backwards up the tree, constructing the path.
   Node curr_node = goal_node;  // Current node is last node in the path
-  while (curr_node.id > 0) {   // Note that the initial node will not get added as the robot is already at that location
+  while (curr_node.id > 0) {
     // Draw path segment
     visualization::DrawPoint(curr_node.loc, 0, viz_msg_);
     visualization::DrawLine(curr_node.loc, node_map_.at(curr_node.parent).loc, 0, viz_msg_);
@@ -304,6 +308,8 @@ void Global_Planner::ConstructPath(const Node goal_node) {
 
     viz_pub_.publish(viz_msg_);
   }
+  path_.insert(path_.begin(), node_map_.at(0).loc); // Insert robot location node
+  path_.push_back(goal_); // Insert goal location as node
 
   std::cout << "[Global_Planner] Constructed global path of length " << goal_node.cost << " with " << steps << " steps" << std::endl;
 }
