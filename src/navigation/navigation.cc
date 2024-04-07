@@ -114,7 +114,7 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   // +
 
   // instantiate a global planner
-  global_planner_ = new global_planner::Global_Planner(map_, n, GOAL_THRESHOLD, GRAPH_RESOLUTION, COLLISION_PROXIMITY, SAMPLE_BUFFER, OPTIMIZATION_RADIUS);
+  global_planner_ = new global_planner::GlobalPlanner(map_, n, GOAL_THRESHOLD, GRAPH_RESOLUTION, COLLISION_PROXIMITY, SAMPLE_BUFFER, OPTIMIZATION_RADIUS);
   global_path_found_ = false;
 }
 
@@ -209,10 +209,10 @@ void Navigation::Run() {
   // if (!carrot_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
   geometry::line2f l1;
   geometry::line2f l2;
-  Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, 0.1, l1, l2)};
+  Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, robot_angle_, 0.1, l1, l2)};
   if (smoothed_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {
     global_path_found_ = false;
-    std::cout << (robot_loc_-nav_goal_loc_).norm() << std::endl;
+    std::cout << "[Navigation] Robot stopped " << (robot_loc_-nav_goal_loc_).norm() << "m from goal." << std::endl;
   }
   if (!smoothed_planner_->planStillValid(robot_loc_)) {
     global_path_found_ = false;
@@ -222,14 +222,16 @@ void Navigation::Run() {
     global_path_found_ = global_planner_->CalculatePath(MAX_SAMPLING_ITERATIONS);
   }
 
-  visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
+  visualization::DrawLine(l1.p0, l1.p1, 0x47FA00, global_viz_msg_);
+  visualization::DrawLine(l2.p0, l2.p1, 0x47FA00, global_viz_msg_);
+
+  // visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
   // .Transform goal to robot frame
   goal -= robot_loc_;
   Vector2f temp(goal.x(), goal.y());
   goal.x() = temp.x()*cos(-robot_angle_) - temp.y()*sin(-robot_angle_);
   goal.y() = temp.y()*cos(-robot_angle_) + temp.x()*sin(-robot_angle_);
-  visualization::DrawCross(goal,0.25,0x38114a,local_viz_msg_);
-
+  visualization::DrawCross(goal,0.25,0x47FA00,local_viz_msg_);
   
   // . with latency compensation
   path_generation::Path best_path;
@@ -237,9 +239,8 @@ void Navigation::Run() {
   Eigen::Vector2f global_goal {testing_path[testing_path.size() - 1] - robot_loc_};
   controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path, goal, global_goal)};
 
-  // . Draw possible paths
+  // // . Draw possible paths
   // std::vector<float> regimes {0.03, 0.1, 0.25, 0.5}; // clearance
-  // for (const auto &path : path_candidates) {
   // for (const auto &path : path_options) {
   //   uint32_t color;
   //   if (std::abs(path.clearance) < regimes[0]) {
@@ -264,7 +265,7 @@ void Navigation::Run() {
   visualization::DrawPathOption(best_path.curvature,
                                   best_path.free_path_length,
                                   best_path.clearance,
-                                  10000,
+                                  0xFA00EE,
                                   true,
                                   local_viz_msg_);
 

@@ -10,23 +10,23 @@
 
 namespace global_planner {
 
-Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n) :
+GlobalPlanner::GlobalPlanner(const vector_map::VectorMap map, ros::NodeHandle* n) :
   map_(map),
   goal_(0, 0),
   goal_threshold_(0.5),
   goal_reached_(false),
   graph_resolution_(0.3),
   // narrow_collision_width_(0.05),
-  collision_proximity_(0.1),
+  collision_proximity_(0.15),
   sample_buffer_(5.0),
   optimization_radius_(1.5) {
     node_map_.clear();
     viz_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
     viz_msg_ = visualization::NewVisualizationMessage(
-      "map", "global_planner");
+      "map", "GlobalPlanner");
   }
 
-Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n, const float goal_threshold, const float graph_resolution, const float collision_proximity, const float sample_buffer, const float optimization_radius) :
+GlobalPlanner::GlobalPlanner(const vector_map::VectorMap map, ros::NodeHandle* n, const float goal_threshold, const float graph_resolution, const float collision_proximity, const float sample_buffer, const float optimization_radius) :
   map_(map),
   goal_(0, 0),
   goal_threshold_(goal_threshold),
@@ -39,10 +39,10 @@ Global_Planner::Global_Planner(const vector_map::VectorMap map, ros::NodeHandle*
     node_map_.clear();
     viz_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
     viz_msg_ = visualization::NewVisualizationMessage(
-      "map", "global_planner");
+      "map", "GlobalPlanner");
   }
 
-void Global_Planner::ClearPath(void) {
+void GlobalPlanner::ClearPath(void) {
   goal_reached_ = false;
   node_map_.clear();
   path_.clear();
@@ -52,7 +52,7 @@ void Global_Planner::ClearPath(void) {
   viz_pub_.publish(viz_msg_);
 }
 
-void Global_Planner::SetRobotLocation(const Eigen::Vector2f loc) {
+void GlobalPlanner::SetRobotLocation(const Eigen::Vector2f loc) {
   // Create starting node at the robot location
   Node node;
   node.id = 0;
@@ -63,18 +63,18 @@ void Global_Planner::SetRobotLocation(const Eigen::Vector2f loc) {
   // Add to map of nodes
   node_map_.insert({node.id, node});
 
-  std::cout << "[Global_Planner] Set robot location at (" << loc[0] << ", " << loc[1] << ")" << std::endl;
+  std::cout << "[GlobalPlanner] Set robot location at (" << loc[0] << ", " << loc[1] << ")" << std::endl;
 }
 
-void Global_Planner::SetGoalLocation(const Eigen::Vector2f loc) {
+void GlobalPlanner::SetGoalLocation(const Eigen::Vector2f loc) {
   goal_ = loc;
   goal_reached_ = false;
 
-  std::cout << "[Global_Planner] Set goal location at (" << loc[0] << ", " << loc[1] << ")" << std::endl;
+  std::cout << "[GlobalPlanner] Set goal location at (" << loc[0] << ", " << loc[1] << ")" << std::endl;
 }
 
-bool Global_Planner::CalculatePath(unsigned int max_iterations) {
-  std::cout << "[Global_Planner] Calculating path... " << std::endl;
+bool GlobalPlanner::CalculatePath(unsigned int max_iterations) {
+  std::cout << "[GlobalPlanner] Calculating path... " << std::endl;
 
   // Draw goal
   visualization::DrawCross(goal_, 0.1, 0xb30b0b, viz_msg_);
@@ -113,7 +113,7 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
     // Exit when goal is reached
     float dist_to_goal = (new_node.loc - goal_).norm();
     if (dist_to_goal <= goal_threshold_) {
-      std::cout << "[Global_Planner] Reached goal after " << counter_ << " iterations" << std::endl;
+      std::cout << "[GlobalPlanner] Reached goal after " << counter_ << " iterations" << std::endl;
       goal_reached_ = true;
 
       // std::cout << "Press Enter to continue..." << std::endl;
@@ -125,16 +125,16 @@ bool Global_Planner::CalculatePath(unsigned int max_iterations) {
     }
   }
 
-  std::cout << "[Global_Planner] Could not reach goal after " << counter_ << " iterations" << std::endl;
+  std::cout << "[GlobalPlanner] Could not reach goal after " << counter_ << " iterations" << std::endl;
 
   return goal_reached_;
 }
 
-std::vector<Eigen::Vector2f> Global_Planner::GetPath(void) {
+std::vector<Eigen::Vector2f> GlobalPlanner::GetPath(void) {
   return path_;
 }
 
-Eigen::Vector2f Global_Planner::SamplePoint(const Eigen::Vector2f robot_loc, const Eigen::Vector2f goal_loc) {
+Eigen::Vector2f GlobalPlanner::SamplePoint(const Eigen::Vector2f robot_loc, const Eigen::Vector2f goal_loc) {
   // Calculate search space based on distance from robot location to goal
   Eigen::Vector2f midpoint = (robot_loc - goal_loc) / 2 + goal_loc;
   float search_radius = (robot_loc - goal_loc).norm() + sample_buffer_;
@@ -148,7 +148,7 @@ Eigen::Vector2f Global_Planner::SamplePoint(const Eigen::Vector2f robot_loc, con
   return point;
 }
 
-Node Global_Planner::FindClosestNode(const Eigen::Vector2f loc) {
+Node GlobalPlanner::FindClosestNode(const Eigen::Vector2f loc) {
   float min_dist = 1000;
   Node closest_node = node_map_.at(0);  // Default closest node is tree top
 
@@ -167,7 +167,7 @@ Node Global_Planner::FindClosestNode(const Eigen::Vector2f loc) {
   return closest_node;
 }
 
-bool Global_Planner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2) {
+bool GlobalPlanner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2) {
   // Create line between node and its parent.
   line2f line(point1[0], point1[1],
               point2[0], point2[1]);
@@ -224,7 +224,7 @@ bool Global_Planner::CheckMapCollision(const Eigen::Vector2f point1, const Eigen
   return collision_flag;
 }
 
-Node Global_Planner::CreateChildNode(Node parent, const Eigen::Vector2f loc) {
+Node GlobalPlanner::CreateChildNode(Node parent, const Eigen::Vector2f loc) {
   // Calculate the projection in the direction from parent node to loc
   Eigen::Vector2f vect = (loc - parent.loc);
   Eigen::Vector2f proj;
@@ -248,7 +248,7 @@ Node Global_Planner::CreateChildNode(Node parent, const Eigen::Vector2f loc) {
   return node;
 }
 
-void Global_Planner::OptimizePathToNode(Node* node) {
+void GlobalPlanner::OptimizePathToNode(Node* node) {
   float min_cost = node->cost;        // cost of current path
   unsigned int best_neighbor = node->parent;  // current parent
 
@@ -285,7 +285,7 @@ void Global_Planner::OptimizePathToNode(Node* node) {
   }
 }
 
-void Global_Planner::ConstructPath(const Node goal_node) {
+void GlobalPlanner::ConstructPath(const Node goal_node) {
   unsigned int steps = 0;
 
   // Clear the search tree after a slight delay
@@ -311,7 +311,7 @@ void Global_Planner::ConstructPath(const Node goal_node) {
   path_.insert(path_.begin(), node_map_.at(0).loc); // Insert robot location node
   path_.push_back(goal_); // Insert goal location as node
 
-  std::cout << "[Global_Planner] Constructed global path of length " << goal_node.cost << " with " << steps << " steps" << std::endl;
+  std::cout << "[GlobalPlanner] Constructed global path of length " << goal_node.cost << " with " << steps << " steps" << std::endl;
 }
 
 }

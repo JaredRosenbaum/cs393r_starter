@@ -129,7 +129,7 @@ class Navigation {
   // +
 
   // Global planner object
-  global_planner::Global_Planner *global_planner_;
+  global_planner::GlobalPlanner *global_planner_;
   bool global_path_found_;
 };
 

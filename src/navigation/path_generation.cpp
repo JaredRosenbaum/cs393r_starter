@@ -87,7 +87,7 @@ void setPathOption(Path& path_option,
     float r_tl = (Vector2f(0, r_inner) - Vector2f(h + CAR_MARGIN, 0)).norm();
     float r_tr = (Vector2f(0, r_outer) - Vector2f(h + CAR_MARGIN, 0)).norm();
     float r_br = (Vector2f(0, r_outer) - Vector2f((robot_config.dimensions_.length_ - robot_config.dimensions_.wheelbase_) / 2 + CAR_MARGIN, 0)).norm();
-    path_option.free_path_length = std::min(M_PI * c.norm(), 5.0); //5.0);  // some large number
+    path_option.free_path_length = std::min(M_PI * c.norm(), 5.0); // some large number
     // float omega = atan2(h, r_inner);
 
 
@@ -156,7 +156,7 @@ void setPathOption(Path& path_option,
         float theta_p =  curvature < 0 ? atan2(p[0], p[1]- c[1]) :
             atan2(p[0], c[1] - p[1]);
         float path_len_p = theta_p * (p-c).norm();
-        if (path_len_p >=0 and path_len_p < path_option.free_path_length) {  // if p is within the fp length
+        if (path_len_p >=0 && path_len_p < path_option.free_path_length) {  // if p is within the fp length
             float inner = std::abs((c - p).norm() - r_inner);
             float outer = std::abs((c - p).norm() - r_tr);
             float clearance_p = std::min(inner, outer);
@@ -202,7 +202,7 @@ std::vector<Path> samplePathOptions(int num_options,
 float score(float free_path_length, float curvature, float clearance, float goal_dist) {
     const float w1 = 0.75; //1.0;
     const float w2 = 0;
-    const float w3 = 0.3; //0.1;
+    const float w3 = 0.5; //0.1;
     const float w4 = 5.0; //15;
     return w1 * free_path_length + w2 * std::abs(1/curvature) + w3 * clearance + w4 * goal_dist;
 }
@@ -214,12 +214,17 @@ int selectPath(const std::vector<Path>& path_options) {
     int selected_path = 0;
     float best_score = 0;
     for (unsigned int i = 0; i < path_options.size(); i++) {
+        // if (path_options[i].clearance < 0.05) {
+        //     // std::cout << "\tSkipping: " << path_options[i].clearance << ", ";
+        //     continue;
+        // }
         float s = score(path_options[i].free_path_length, path_options[i].curvature, path_options[i].clearance, path_options[i].dist_to_goal);
         if (s > best_score) {
             best_score = s;
             selected_path = i;
         }
     }
+    // std::cout << std::endl;
     return selected_path;
 }
 

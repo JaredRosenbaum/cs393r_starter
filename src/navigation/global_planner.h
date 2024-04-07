@@ -32,11 +32,11 @@ struct Node {
   float cost;
 };
 
-class Global_Planner {
+class GlobalPlanner {
   public:
-    Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n);
+    GlobalPlanner(const vector_map::VectorMap map, ros::NodeHandle* n);
 
-    Global_Planner(const vector_map::VectorMap map, ros::NodeHandle* n, const float goal_threshold, const float graph_resolution, const float collision_proximity, const float sample_buffer, const float optimization_radius);
+    GlobalPlanner(const vector_map::VectorMap map, ros::NodeHandle* n, const float goal_threshold, const float graph_resolution, const float collision_proximity, const float sample_buffer, const float optimization_radius);
 
     void ClearPath(void);
 
@@ -83,4 +83,4 @@ class Global_Planner {
     float optimization_radius_; // Radius to search within for optimized path
 };
 
-} // namespace global_planner
+} // namespace GlobalPlanner

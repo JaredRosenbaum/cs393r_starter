@@ -14,7 +14,7 @@ namespace path_generation {
 
 struct Path {
   float curvature = 0;
-  float clearance = 10;
+  float clearance = 5;
   float free_path_length = 10;
   float dist_to_goal = 20;
   Eigen::Vector2f obstruction = Eigen::Vector2f::Zero();

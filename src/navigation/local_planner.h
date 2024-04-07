@@ -66,7 +66,7 @@ class SmoothedPlanner{
 
         bool checkMapCollision(const Eigen::Vector2f point1, const Eigen::Vector2f point2, geometry::line2f &l1, geometry::line2f &l2);
 
-        Vector2f interpolatePath(Vector2f robot_xy, float interpolation_threshold, geometry::line2f &l1, geometry::line2f &l2);
+        Vector2f interpolatePath(Vector2f robot_xy, float robot_angle, float interpolation_threshold, geometry::line2f &l1, geometry::line2f &l2);
         // Vector2f feedCarrot(Vector2f robot_xy);
     private:
         std::vector<Vector2f> full_path_;

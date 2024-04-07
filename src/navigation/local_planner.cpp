@@ -8,10 +8,6 @@
 
 #include "local_planner.h"
 
-
-
-
-
 namespace local_planners {
 
 // -------------------------------------------------------------------------
@@ -37,7 +33,7 @@ bool CarrotPlanner::reachedGoal(Vector2f robot_xy, Vector2f goal_xy){
         return false;
     }
     else{
-        ROS_INFO_STREAM("Robot has reached the goal. No local planning will occur.");
+        std::cout << "[LocalPlanner] Robot has reached the goal. No local planning will occur." << std::endl;
         return true;
     }
 }
@@ -45,7 +41,7 @@ bool CarrotPlanner::reachedGoal(Vector2f robot_xy, Vector2f goal_xy){
 bool CarrotPlanner::planStillValid(Vector2f robot_xy){
     // Is the robot within a tolerance of any point on the path?
     if (!init) {
-        ROS_ERROR("No path!");
+        std::cout << "[LocalPlanner] No path!" << std::endl;
         return false;
     }
     bool near_path = false;
@@ -62,14 +58,14 @@ bool CarrotPlanner::planStillValid(Vector2f robot_xy){
     }
     // If no, replanning is required.
     else{
-        ROS_INFO_STREAM("Robot has strayed too far from the path. Replanning is required.");
+        std::cout << "[LocalPlanner] Robot has strayed too far from the path. Replanning is required." << std::endl;
         return false;
     }
 }
 
 Vector2f CarrotPlanner::feedCarrot(Vector2f robot_xy){
     if (!init) {
-        ROS_ERROR("No path!");
+        std::cout << "[LocalPlanner] No path!" << std::endl;
         return robot_xy;
     }
     int best_index = -1;
@@ -85,7 +81,7 @@ Vector2f CarrotPlanner::feedCarrot(Vector2f robot_xy){
     }
     if (best_index < 0){
         // No edges fell within the carrot planners radius. This should NEVER occur, thanks to the planStillValid function. If it occurs, something bad happened!
-        ROS_INFO_STREAM("Carrot planner failed.");
+        std::cout << "[LocalPlanner] Carrot planner failed." << std::endl;
         return robot_xy;
     }
     else{
@@ -108,7 +104,7 @@ void SmoothedPlanner::populatePath(std::vector<Vector2f> path){
 
 bool SmoothedPlanner::reachedGoal(Vector2f robot_xy, Vector2f goal_xy){
     if (!init) {
-        ROS_ERROR("No path!");
+        std::cout << "[LocalPlanner] No path!" << std::endl;
         return false;
     }
 
@@ -120,14 +116,14 @@ bool SmoothedPlanner::reachedGoal(Vector2f robot_xy, Vector2f goal_xy){
         return false;
     }
     else{
-        ROS_INFO_STREAM("Robot has reached the goal. No local planning will occur.");
+        std::cout << "[LocalPlanner] Robot has reached the goal. No local planning will occur." << std::endl;
         return true;
     }
 }
 
 bool SmoothedPlanner::planStillValid(Vector2f robot_xy){
     if (!init) {
-        ROS_ERROR("No path!");
+        std::cout << "[LocalPlanner] No path!" << std::endl;
         return false;
     }
     //. Is the robot within a tolerance of any point on the path?
@@ -162,7 +158,7 @@ bool SmoothedPlanner::planStillValid(Vector2f robot_xy){
     }
     //. If no, replanning is required.
     else {
-        ROS_INFO_STREAM("Robot has strayed too far from the path. Replanning is required.");
+        std::cout << "[LocalPlanner] Robot has strayed too far from the path. Replanning is required." << std::endl;
         return false;
     }
 }
@@ -172,7 +168,7 @@ bool SmoothedPlanner::checkMapCollision(const Eigen::Vector2f point1, const Eige
     geometry::line2f line(point1[0], point1[1],
                 point2[0], point2[1]);
     // Note: These seven lines allow for collision checks to have an added margin. Can be added later, but shouldn't be necessary
-    float collision_check_width_ = 1.f; // 0.15;
+    float collision_check_width_ = CAR_WIDTH + 2 * CAR_MARGIN; // 0.24f; // 0.15;
     float theta = atan2((point2[1] - point1[1]), (point2[0] - point1[0]));
     // float dx = collision_check_width_ / 2 * cos(M_PI / 2 - theta);
     // float dy = collision_check_width_ / 2 * sin(M_PI / 2 - theta);
@@ -203,14 +199,13 @@ bool SmoothedPlanner::checkMapCollision(const Eigen::Vector2f point1, const Eige
     return collision_flag;
 }
 
-Vector2f SmoothedPlanner::interpolatePath(Vector2f robot_xy, float interpolation_threshold, geometry::line2f &l1, geometry::line2f &l2){
+Vector2f SmoothedPlanner::interpolatePath(Vector2f robot_xy, float robot_angle, float interpolation_threshold, geometry::line2f &l1, geometry::line2f &l2){
     Vector2f goal = robot_xy;
     if (!init) {
-        ROS_ERROR("No path!");
+        std::cout << "[LocalPlanner] No path!" << std::endl;
         return goal;
     }
     for (int i = full_path_.size()-1; i > 0; i--){
-        bool do_break = false;
         Vector2f a = full_path_[i];
         Vector2f b = full_path_[i-1];
         float a_b_norm = (a-b).norm();
@@ -220,18 +215,26 @@ Vector2f SmoothedPlanner::interpolatePath(Vector2f robot_xy, float interpolation
             Vector2f point = a-((a-b)*(j/a_b_norm));
             // std::cout << point.transpose() << std::endl;
             // Check for intersection, if intersection free make goal
-            // if (checkMapCollision(robot_xy, point) == false){
             if ((point-robot_xy).norm() <= stick_length_) {
                 if (checkMapCollision(robot_xy, point, l1, l2) == false) {
                     // std::cout << "index: " << i << " far point: " << a.transpose() << " near point: " << b.transpose() << " interpolated point: " << point.transpose() << std::endl;
-                    goal = point;
-                    do_break = true;
-                    break;
+                    // push the carrot forward a bit if it would be stuck inside the robot (helps get around tight corners)
+                    // bool pushed {false};
+                    if ((i != static_cast<int>(full_path_.size()) - 1) && (point-robot_xy).norm() <= 0.5) {
+                        point.x() += 0.5 * cos(robot_angle);
+                        point.y() += 0.5 * sin(robot_angle);
+                        // pushed = true;
+                    }
+                    // std::cout << "i: " << i << ", path_size: " << static_cast<int>(full_path_.size()) - 1 << ", point: " << point.transpose() << ", pushed: " << pushed << std::endl;
+                    return point;
                 }
             }
         }
-        if (do_break){break;}
     }
+    // if we made it this far, let's push the goal to be a bit in front of the robot's location to keep it moving
+    // goal.x() += 0.15 * cos(robot_angle);
+    // goal.y() += 0.15 * sin(robot_angle);
+    std::cout << "goal: " << goal.transpose() << std::endl;
     return goal;
 }
 }
