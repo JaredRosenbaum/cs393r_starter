@@ -30,6 +30,11 @@
 
 namespace slam {
 
+struct Pose {
+  Eigen::Vector2f loc;
+  float angle;
+};
+
 class SLAM {
  public:
   // Default Constructor.
@@ -45,6 +50,9 @@ class SLAM {
   // Observe new odometry-reported location.
   void ObserveOdometry(const Eigen::Vector2f& odom_loc,
                        const float odom_angle);
+  
+  // Calculate motion model for scan matching
+  void PrepareMotionModel(const Eigen::Vector2f translation, const float rotation);
 
   // Get latest map.
   std::vector<Eigen::Vector2f> GetMap();
@@ -53,11 +61,13 @@ class SLAM {
   void GetPose(Eigen::Vector2f* loc, float* angle) const;
 
  private:
+  Pose current_pose_;     // current estimate of the robot pose
 
-  // Previous odometry-reported locations.
-  Eigen::Vector2f prev_odom_loc_;
-  float prev_odom_angle_;
-  bool odom_initialized_;
+  Pose prev_odom_pose_;   // previous odometry-reported pose
+  bool odom_initialized_; // odometry flag
+
+  Pose reference_scan_pose_;  // reference scan match pose
+  bool motion_model_ready     // motion model flag
 };
 }  // namespace slam
 

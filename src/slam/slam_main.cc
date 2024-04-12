@@ -154,10 +154,10 @@ int main(int argc, char** argv) {
   localization_publisher_ =
       n.advertise<amrl_msgs::Localization2DMsg>("localization", 1);
 
-  ros::Subscriber laser_sub = n.subscribe(
-      FLAGS_laser_topic.c_str(),
-      1,
-      LaserCallback);
+  // ros::Subscriber laser_sub = n.subscribe(
+  //     FLAGS_laser_topic.c_str(),
+  //     1,
+  //     LaserCallback);
   ros::Subscriber odom_sub = n.subscribe(
       FLAGS_odom_topic.c_str(),
       1,
