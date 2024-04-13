@@ -8,7 +8,7 @@ MESSAGE(STATUS "Using compiler: ${CMAKE_CXX_COMPILER}")
 MESSAGE(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 MESSAGE(STATUS "Arch: ${CMAKE_SYSTEM_PROCESSOR}")
 
-SET(CMAKE_CXX_FLAGS "-std=c++11 -Wall -Werror")
+SET(CMAKE_CXX_FLAGS "-std=c++14 -Wall -Werror") # !!!CHANGED FROM 11!!!
 
 IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
   MESSAGE(STATUS "Additional Flags for Release mode")
@@ -75,3 +75,7 @@ TARGET_LINK_LIBRARIES(cimg_example shared_library ${libs} X11)
 ADD_EXECUTABLE(resampling_test
                src/particle_filter/resampling_test.cpp)
 TARGET_LINK_LIBRARIES(resampling_test shared_library ${libs})
+
+ADD_EXECUTABLE(rasterization
+               src/slam/rasterization.cpp)
+TARGET_LINK_LIBRARIES(rasterization shared_library ${libs})
