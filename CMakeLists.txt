@@ -76,6 +76,6 @@ ADD_EXECUTABLE(resampling_test
                src/particle_filter/resampling_test.cpp)
 TARGET_LINK_LIBRARIES(resampling_test shared_library ${libs})
 
-ADD_EXECUTABLE(rasterization
-               src/slam/rasterization.cpp)
-TARGET_LINK_LIBRARIES(rasterization shared_library ${libs})
+ADD_EXECUTABLE(rasterization_test
+               src/slam/rasterization_test.cpp)
+TARGET_LINK_LIBRARIES(rasterization_test shared_library ${libs})

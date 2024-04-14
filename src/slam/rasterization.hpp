@@ -1,16 +1,14 @@
 #pragma once
 
 #include <vector>
-#include <map>
-#include <unordered_map>
 #include <memory>
 #include <limits>
 #include <cmath>
 #include <iostream>
-#include "eigen3/Eigen/Dense"
-#include "eigen3/Eigen/Geometry"
 #include <fstream>
 #include <random>
+#include "eigen3/Eigen/Dense"
+#include "eigen3/Eigen/Geometry"
 
 namespace rasterization {
 
@@ -25,75 +23,17 @@ public:
 
     double lookupProbability(const Eigen::Vector2f &point)
     {
-        // std::cout << "Looking up probability at " << point.transpose() << std::endl;
-
         // calculate indices of point in image
-        auto indices {computeIndices(point)};
+        const auto indices {computeIndices(point)};
         if (indices[0] == -1 || indices[1] == -1) {return 0.d;}
-
-        // std::cout << "\tComput   ed indices " << indices[0] << ", " << indices[1] << std::endl;
 
         // if here, the point is within the canvas
         return (*_image)[indices[0]][indices[1]];
     }
 
-    // TODO fill this in, later make private again
-    void seedGaussianKernel(const Eigen::Vector2f &point)
-    {
-        const auto indices {computeIndices(point)};
-        if (indices[0] == -1 || indices[1] == -1) {return;}
-
-        // get all points that should have values
-        float d_three_sigma {5 * _sigma}; // !!! this should be chamged back to 3 for efficiency but 5 is PRETTY
-        int d_pixels {static_cast<int>(d_three_sigma / _resolution)};
-
-        // std::cout << "\t" << d_pixels << ", " << d_three_sigma / _resolution << std::endl;
-
-        // std::cout << "Finding distance " << d_three_sigma << ", pixels: " << d_pixels << std::endl; 
-
-        // evaluate the Gaussian at these points (in the center) based on distance from point
-        int counter {};
-        for (int i = std::max(indices[0] - d_pixels, 0); i <= std::min(indices[0] + d_pixels, static_cast<int>(_image->size()) - 1); i++) {
-            
-            for (int j = std::max(indices[1] - d_pixels, 0); j <= std::min(indices[1] + d_pixels, static_cast<int>((*_image)[0].size()) - 1); j++) {
-
-                // std::cout << "\ti: " << i << ", j: " << j << ", x_size: " << _image->size() << ", y_size: " << _image->at(0).size() << std::endl;
-                
-                // calculate the distance from the center to the pixel in pixels
-                double l2_pixels {sqrt(pow(i - indices[0], 2) + pow(j - indices[1], 2))};
-
-                // std::cout << "\t\tl2_pixels: " << l2_sqrd_pixels << std::endl;
-                
-                // check if it's within the circle
-                if (l2_pixels <= d_pixels) {
-                    
-                    // if it is, convert the distance to m
-                    float l2_m {static_cast<float>(l2_pixels * _resolution)};
-                    
-                    // std::cout << "\t\t\tl2_pixels: " << l2_sqrd_pixels << ", " << pow(d_pixels, 2) << ", " << l2_sqrd_m << std::endl;
-
-                    // and evaulate the Gaussian at this distance
-                    // ? should this be a sum or a max?
-                    auto prob {exp(-0.5 * l2_m / pow(_sigma, 2))};
-
-                    // std::cout << "\t\t\t\tTrying to set " << i << ", " << j << " += " << prob << std::endl;
-
-                    (*_image)[i][j] += prob;
-                    // std::cout << "\t" << prob << std::endl;
-                    // (*_image)[i][j] = std::max((*_image)[i][j], prob);
-
-                    counter++;
-                }
-                // std::cout << "Checking pixel at (" << i << ", " << j << ")" << std::endl;
-            }
-        }
-        // std::cout << "visited " << counter << " points to seed kernel" << std::endl; 
-    }
-
-    // void saveAsPPM(const std::vector<std::vector<int>>& pixels, const std::string& filename)
     void saveAsPPM(const std::string &path)
     {
-        auto pixels = *_image;
+        const auto pixels = *_image;
         std::ofstream outFile(path);
 
         // Write PPM header
@@ -111,15 +51,13 @@ public:
                 outFile << int_value << " " << int_value << " " << int_value << "\n"; // Write grayscale pixel (R, G, B)
             }
         }
-
         outFile.close();
-        std::cout << "saved image" << std::endl;
+        std::cout << "Saved image to " << path << std::endl;
     }
 
     void saveAsPPMRandom(const std::string &path)
     {
-        // TODO randomize colors to make sure pixels are the right size
-        auto pixels = *_image;
+        const auto pixels = *_image;
         std::ofstream outFile(path);
 
         // Write PPM header
@@ -138,9 +76,8 @@ public:
                 outFile << dis(gen) << " " << dis(gen) << " " << dis(gen) << "\n"; // Write grayscale pixel (R, G, B)
             }
         }
-
         outFile.close();
-        std::cout << "saved image" << std::endl;
+        std::cout << "Saved image to " << path << std::endl;
     }
 
 private:
@@ -158,16 +95,16 @@ private:
             return {-1, -1};
         }
 
-        // make sure the point falls within the canvas
+        // make sure the point falls within the bounds of the input data
         if (point.x() < _lower_left_corner->x() || point.x() > _upper_right_corner->x() || point.y() < _lower_left_corner->y() || point.y() > _upper_right_corner->y()) {
             return {-1, -1};
         }
 
-        // std::cout << "\t\t" << (point.x() - _lower_left_corner->x()) / _resolution << ", " << (point.y() - _lower_left_corner->y()) / _resolution << std::endl;
-
+        // calculate the indices where the data should be
         int x_index {static_cast<int>((point.x() - _lower_left_corner->x()) / _resolution)};
         int y_index {static_cast<int>((point.y() - _lower_left_corner->y()) / _resolution)};
 
+        // make sure these indices fall within the canvas
         if (!((x_index < static_cast<int>(_image->size())) && (x_index >= 0)) || !((y_index < static_cast<int>(_image->at(0).size())) && (y_index >= 0))) {
             return {-1, -1};
         }
@@ -198,11 +135,43 @@ private:
 
         _image = std::make_unique<std::vector<std::vector<double>>>(size_x, std::vector<double>(size_y, 0.d));
 
-        std::cout << "Created an 'image' of size [" << _image->size() << ", " << _image->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
+        std::cout << "Created an lookup table of size [" << _image->size() << ", " << _image->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
 
-        // TODO and now seed it with Gaussian kernels
         for (const auto &point : points) {
             seedGaussianKernel(point);
+        }
+    }
+
+    void seedGaussianKernel(const Eigen::Vector2f &point)
+    {
+        const auto indices {computeIndices(point)};
+        if (indices[0] == -1 || indices[1] == -1) {return;}
+
+        // get all points that should have values
+        float d_three_sigma {5 * _sigma}; // !!! this maybe should be chamged back to 3 for efficiency but 5 is PRETTY
+        int d_pixels {static_cast<int>(d_three_sigma / _resolution)};
+
+        // evaluate the Gaussian at these points (in the center) based on distance from point
+        for (int i = std::max(indices[0] - d_pixels, 0); i <= std::min(indices[0] + d_pixels, static_cast<int>(_image->size()) - 1); i++) {
+            
+            for (int j = std::max(indices[1] - d_pixels, 0); j <= std::min(indices[1] + d_pixels, static_cast<int>((*_image)[0].size()) - 1); j++) {
+
+                // calculate the distance from the center to the pixel in pixels
+                double l2_pixels {sqrt(pow(i - indices[0], 2) + pow(j - indices[1], 2))};
+
+                // check if it's within the circle
+                if (l2_pixels <= d_pixels) {
+                    
+                    // if it is, convert the distance to m
+                    float l2_m {static_cast<float>(l2_pixels * _resolution)};
+                    
+                    // and evaulate the Gaussian at this distance
+                    auto prob {exp(-0.5 * l2_m / pow(_sigma, 2))};
+
+                    // ? should this be a sum or a max? unclear from paper, let's try sum for now
+                    (*_image)[i][j] += prob;
+                }
+            }
         }
     }
 
