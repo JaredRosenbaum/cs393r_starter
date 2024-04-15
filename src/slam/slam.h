@@ -25,6 +25,11 @@
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
 
+#include "ros/ros.h"
+#include "ros/package.h"
+#include "visualization/visualization.h"
+#include "amrl_msgs/VisualizationMsg.h"
+
 #ifndef SRC_SLAM_H_
 #define SRC_SLAM_H_
 
@@ -40,6 +45,12 @@ class SLAM {
   // Default Constructor.
   SLAM();
 
+  // Create visualization publisher
+  void CreateVisPublisher(ros::NodeHandle* n);
+
+  // Initialize pose to align with web visualizer
+  void InitializePose(const Eigen::Vector2f& loc, const float angle);
+
   // Observe a new laser scan.
   void ObserveLaser(const std::vector<float>& ranges,
                     float range_min,
@@ -52,7 +63,7 @@ class SLAM {
                        const float odom_angle);
   
   // Calculate motion model for scan matching
-  void PrepareMotionModel(const Eigen::Vector2f translation, const float rotation);
+  void PrepareMotionModel(const Pose pose);
 
   // Get latest map.
   std::vector<Eigen::Vector2f> GetMap();
@@ -61,13 +72,17 @@ class SLAM {
   void GetPose(Eigen::Vector2f* loc, float* angle) const;
 
  private:
+  ros::Publisher vis_pub_;
+  amrl_msgs::VisualizationMsg vis_msg_;
+
   Pose current_pose_;     // current estimate of the robot pose
+  Pose reference_scan_pose_;  // reference scan match pose
 
   Pose prev_odom_pose_;   // previous odometry-reported pose
   bool odom_initialized_; // odometry flag
+  std::vector<Pose> motion_model_;  // motion model vector of poses
+  bool motion_model_ready_;    // motion model flag
 
-  Pose reference_scan_pose_;  // reference scan match pose
-  bool motion_model_ready     // motion model flag
 };
 }  // namespace slam
 

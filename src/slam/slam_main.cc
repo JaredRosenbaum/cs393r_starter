@@ -69,6 +69,7 @@ using visualization::DrawParticle;
 // Create command line arguements
 DEFINE_string(laser_topic, "/scan", "Name of ROS topic for LIDAR data");
 DEFINE_string(odom_topic, "/odom", "Name of ROS topic for odometry data");
+DEFINE_string(init_topic, "/set_pose", "Name of ROS topic for initialization");
 
 DECLARE_int32(v);
 
@@ -141,6 +142,15 @@ void OdometryCallback(const nav_msgs::Odometry& msg) {
   slam_.ObserveOdometry(odom_loc, odom_angle);
 }
 
+void InitCallback(const amrl_msgs::Localization2DMsg& msg) {
+  const Vector2f init_loc(msg.pose.x, msg.pose.y);
+  const float init_angle = msg.pose.theta;
+  printf("Initialize: (%f,%f) %f\u00b0\n",
+         init_loc.x(),
+         init_loc.y(),
+         RadToDeg(init_angle));
+  slam_.InitializePose(init_loc, init_angle);
+}
 
 int main(int argc, char** argv) {
   google::ParseCommandLineFlags(&argc, &argv, false);
@@ -154,14 +164,20 @@ int main(int argc, char** argv) {
   localization_publisher_ =
       n.advertise<amrl_msgs::Localization2DMsg>("localization", 1);
 
-  // ros::Subscriber laser_sub = n.subscribe(
-  //     FLAGS_laser_topic.c_str(),
-  //     1,
-  //     LaserCallback);
+  slam_.CreateVisPublisher(&n);
+
+  ros::Subscriber laser_sub = n.subscribe(
+      FLAGS_laser_topic.c_str(),
+      1,
+      LaserCallback);
   ros::Subscriber odom_sub = n.subscribe(
       FLAGS_odom_topic.c_str(),
       1,
       OdometryCallback);
+  ros::Subscriber initial_pose_sub = n.subscribe(
+      FLAGS_init_topic.c_str(),
+      1,
+      InitCallback);
   ros::spin();
 
   return 0;

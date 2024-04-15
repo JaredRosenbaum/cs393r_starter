@@ -175,8 +175,8 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 
 void Navigation::Run() {
   // TODO Testing
-  drive_msg_.curvature = 0;
-  drive_msg_.velocity = 1;
+  drive_msg_.curvature = -0.7;
+  drive_msg_.velocity = 0.5;
   drive_msg_.header.stamp = ros::Time::now();
   drive_pub_.publish(drive_msg_);
 
