@@ -51,7 +51,7 @@ struct State {
   Pose pose;      // relative to previous pose frame
   Eigen::Matrix3f cov;
   std::vector<Eigen::Vector2f> point_cloud;   // relative to current pose frame
-}
+};
 
 class SLAM {
  public:
@@ -79,7 +79,7 @@ class SLAM {
                        const float odom_angle);
   
   // Calculate motion model for scan matching
-  void PrepareMotionModel(const Pose pose_in_map);
+  void PrepareMotionModel(const Pose odom_change);
 
   // Get latest map.
   std::vector<Eigen::Vector2f> GetMap();
@@ -91,18 +91,18 @@ class SLAM {
   ros::Publisher vis_pub_;
   amrl_msgs::VisualizationMsg vis_msg_;
 
-  Pose current_pose_;     // current estimate of the robot pose
+  Pose current_pose_;         // current estimate of the robot pose
   Pose reference_scan_pose_;  // reference scan match pose
 
-  std::vector<Candidate> candidates_;   // candidate vector for CSM algorithm
-
-  Pose prev_odom_pose_;   // previous odometry-reported pose
   bool odom_initialized_; // odometry flag
+  Pose prev_odom_pose_;   // previous odometry-reported pose
+  Pose reference_odom_pose_;
   std::vector<Pose> motion_model_;  // motion model vector of poses
   bool motion_model_ready_;    // motion model 
   
   std::vector<Eigen::Vector2f> reference_point_cloud_;  // reference laser scan
 
+  std::vector<Candidate> candidates_;   // candidate vector of possible next state
   std::vector<State> state_chain_;
 
 };
