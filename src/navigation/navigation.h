@@ -25,6 +25,7 @@
 
 #include "vehicles.hpp"
 #include "controllers.h"
+#include "global_planner.h"
 #include "local_planner.h"
 
 #ifndef NAVIGATION_H
@@ -119,14 +120,17 @@ class Navigation {
   controllers::time_optimal_1D::Controller *controller_;
   double last_msg_timestamp_;
   controllers::latency_compensation::Controller *latency_controller_;
-
-
   // Local Planner
   std::vector<Vector2f> testing_path;
 
   local_planners::CarrotPlanner *carrot_planner_;
+  local_planners::SmoothedPlanner *smoothed_planner_;
   // NavigationParams robot_config_;
   // +
+
+  // Global planner object
+  global_planner::GlobalPlanner *global_planner_;
+  bool global_path_found_;
 };
 
 }  // namespace navigation

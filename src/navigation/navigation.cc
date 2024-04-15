@@ -99,20 +99,48 @@ Navigation::Navigation(const string& map_name, ros::NodeHandle* n) :
   latency_controller_ = new controllers::latency_compensation::Controller(car_, TIME_STEP, CAR_MARGIN, MAX_CLEARANCE, CURVATURE_SAMPLING_INTERVAL, LATENCY);
 
   //* instantiating the local planner
-  for (int i = 0; i < 20; i++){
-    Vector2f point(i, rand()%3);
-    if (rand()%3 == 1){
-      point.y() *= -1;
-    }
-    testing_path.push_back(point);
-  }
-  carrot_planner_ = new local_planners::CarrotPlanner(STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
+  // Simple path for testing purposes
+  // for (int i = 0; i < 20; i++){
+  //   Vector2f point(i, rand()%3);
+  //   if (rand()%3 == 1){
+  //     point.y() *= -1;
+  //   }
+  //   testing_path.push_back(point);
+  // }
+  // carrot_planner_ = new local_planners::CarrotPlanner(STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
+  smoothed_planner_ = new local_planners::SmoothedPlanner(map_, STICK_LENGTH, GOAL_TOL, PATH_DEV_TOL);
 
   // robot_config_ = NavigationParams();
   // +
+
+  // instantiate a global planner
+  global_planner_ = new global_planner::GlobalPlanner(map_, n, GOAL_THRESHOLD, GRAPH_RESOLUTION, COLLISION_PROXIMITY, SAMPLE_BUFFER, OPTIMIZATION_RADIUS);
+  global_path_found_ = false;
 }
 
 void Navigation::SetNavGoal(const Vector2f& loc, float angle) {
+  // Update navigation goal
+  nav_goal_loc_ = loc;
+  nav_goal_angle_ = angle;
+
+  std::cout << "[Navigation] Calculating global path from (" << robot_loc_[0] << ", " << robot_loc_[1] << ") to (" << loc[0] << ", " << loc[1] << ")" << std::endl;
+
+  // Clear previous global path
+  global_path_found_ = false;
+  global_planner_->ClearPath();
+
+  // Calculate global path from planner
+  global_planner_->SetRobotLocation(robot_loc_);
+  global_planner_->SetGoalLocation(nav_goal_loc_);
+  global_path_found_ = global_planner_->CalculatePath(MAX_SAMPLING_ITERATIONS);
+
+  if (global_path_found_) {
+    std::cout << "[Navigation] Global path ready!" << std::endl;
+  }
+  else{
+    std::cout << "[Navigation] Global path not found!" << std::endl;
+  }
+  nav_complete_ = false;
 }
 
 void Navigation::UpdateLocation(const Eigen::Vector2f& loc, float angle) {
@@ -152,15 +180,9 @@ void Navigation::Run() {
   visualization::ClearVisualizationMsg(local_viz_msg_);
   visualization::ClearVisualizationMsg(global_viz_msg_);
 
-  // Visualize pointcloud
-  // for (int i = 0; i < (int)point_cloud_.size(); i++) {
-  //   Vector2f p = point_cloud_[i];
-  //   visualization::DrawCross(p, 0.01, 0, local_viz_msg_);
-  // }
-
   // Visualize car
   visualization::DrawRectangle(Vector2f(car_->dimensions_.wheelbase_/2, 0),
-      car_->dimensions_.length_, car_->dimensions_.width_, 0, 0x00FF00, local_viz_msg_);
+      car_->dimensions_.length_, car_->dimensions_.width_, 0, 0, local_viz_msg_);
   
   // Visualize margin
   visualization::DrawRectangle(Vector2f(car_->dimensions_.wheelbase_/2, 0),
@@ -168,73 +190,89 @@ void Navigation::Run() {
 
   // If odometry has not been initialized, we can't do anything.
   if (!odom_initialized_) return;
+  if (!global_path_found_) return;
 
   // . regular TOC
   // controllers::time_optimal_1D::Command command {controller_->generateCommand(point_cloud_, robot_vel_(0))};
-  carrot_planner_->populatePath(testing_path);
+  testing_path = global_planner_->GetPath();
+  // carrot_planner_->populatePath(testing_path);
+  smoothed_planner_->populatePath(testing_path);
 
   //Temp visualization of path
-  for (std::size_t i=0; i<=testing_path.size()-1; i++){
+  for (std::size_t i=0; i<=testing_path.size()-2; i++){
         visualization::DrawLine(testing_path[i],testing_path[i+1],0x38114a,global_viz_msg_);
         visualization::DrawCross(testing_path[i],0.025,0x38114a,global_viz_msg_);
   }
 
-  Vector2f goal {carrot_planner_->feedCarrot(robot_loc_)};
+  // Vector2f goal {carrot_planner_->feedCarrot(robot_loc_)};
+  // if (carrot_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {global_path_found_ = false;}
+  // if (!carrot_planner_->planStillValid(robot_loc_)) {global_path_found_ = false;}
+  geometry::line2f l1;
+  geometry::line2f l2;
+  Vector2f goal {smoothed_planner_->interpolatePath(robot_loc_, robot_angle_, 0.1, l1, l2)};
+  if (smoothed_planner_->reachedGoal(robot_loc_, nav_goal_loc_)) {
+    global_path_found_ = false;
+    std::cout << "[Navigation] Robot stopped " << (robot_loc_-nav_goal_loc_).norm() << "m from goal." << std::endl;
+  }
+  if (!smoothed_planner_->planStillValid(robot_loc_)) {
+    global_path_found_ = false;
+    global_planner_->ClearPath();
+    global_planner_->SetRobotLocation(robot_loc_);
+    global_planner_->SetGoalLocation(nav_goal_loc_);
+    global_path_found_ = global_planner_->CalculatePath(MAX_SAMPLING_ITERATIONS);
+  }
 
-  visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
+  visualization::DrawLine(l1.p0, l1.p1, 0x47FA00, global_viz_msg_);
+  visualization::DrawLine(l2.p0, l2.p1, 0x47FA00, global_viz_msg_);
+
+  // visualization::DrawCross(goal,0.25,0x38114a,global_viz_msg_);
   // .Transform goal to robot frame
   goal -= robot_loc_;
-  goal.x() = goal.x()*cos(-robot_angle_) - goal.y()*sin(-robot_angle_);
-  goal.y() = goal.y()*cos(-robot_angle_) + goal.x()*sin(-robot_angle_);
-  visualization::DrawCross(goal,0.25,0x38114a,local_viz_msg_);
-
+  Vector2f temp(goal.x(), goal.y());
+  goal.x() = temp.x()*cos(-robot_angle_) - temp.y()*sin(-robot_angle_);
+  goal.y() = temp.y()*cos(-robot_angle_) + temp.x()*sin(-robot_angle_);
+  visualization::DrawCross(goal,0.25,0x47FA00,local_viz_msg_);
   
   // . with latency compensation
   path_generation::Path best_path;
   std::vector<path_generation::Path> path_options;
-  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path, goal)};
+  Eigen::Vector2f global_goal {testing_path[testing_path.size() - 1] - robot_loc_};
+  controllers::time_optimal_1D::Command command {latency_controller_->generateCommand(point_cloud_, robot_vel_(0), last_msg_timestamp_, path_options, best_path, goal, global_goal)};
 
-
-
-
-
-  // std::cout << "==========" << std::endl;
-  // std::cout << "\tCurv: " << best_path.curvature << "\tFpl: " << best_path.free_path_length << "\tClr: " << best_path.clearance << std::endl;
-
-  // . Draw possible paths
-  std::vector<float> regimes {0.03, 0.1, 0.25, 0.5}; // clearance
-  // for (const auto &path : path_candidates) {
-  for (const auto &path : path_options) {
-    uint32_t color;
-    if (std::abs(path.clearance) < regimes[0]) {
-      color = 0xff0000;
-    } else if (std::abs(path.clearance) < regimes[1]) {
-      color = 0xff9933;
-    } else if (std::abs(path.clearance) < regimes[2]) {
-      color = 0xffff00;
-    } else if (std::abs(path.clearance) < regimes[3]) {
-      color = 0x66ff66;
-    } else {
-      color = 0x0000ff;
-    }
-    visualization::DrawPathOption(path.curvature,
-                                  path.free_path_length,
-                                  path.clearance,
-                                  color, //32762,
-                                  false,
-                                  local_viz_msg_);
-  }
+  // // . Draw possible paths
+  // std::vector<float> regimes {0.03, 0.1, 0.25, 0.5}; // clearance
+  // for (const auto &path : path_options) {
+  //   uint32_t color;
+  //   if (std::abs(path.clearance) < regimes[0]) {
+  //     color = 0xff0000;
+  //   } else if (std::abs(path.clearance) < regimes[1]) {
+  //     color = 0xff9933;
+  //   } else if (std::abs(path.clearance) < regimes[2]) {
+  //     color = 0xffff00;
+  //   } else if (std::abs(path.clearance) < regimes[3]) {
+  //     color = 0x66ff66;
+  //   } else {
+  //     color = 0x0000ff;
+  //   }
+  //   visualization::DrawPathOption(path.curvature,
+  //                                 path.free_path_length,
+  //                                 path.clearance,
+  //                                 color, //32762,
+  //                                 false,
+  //                                 local_viz_msg_);
+  // }
   // . Draw best path
   visualization::DrawPathOption(best_path.curvature,
                                   best_path.free_path_length,
                                   best_path.clearance,
-                                  10000,
+                                  0xFA00EE,
                                   true,
                                   local_viz_msg_);
 
   // Eventually, you will have to set the control values to issue drive commands:
   drive_msg_.curvature = command.curvature;
   drive_msg_.velocity = command.velocity;
+  // drive_msg_.velocity = 0;
 
   // Add timestamps to all messages.
   local_viz_msg_.header.stamp = ros::Time::now();

@@ -10,3 +10,4 @@ web_rviz.html
 *.bag
 
 auxillary_ws/*
+images/

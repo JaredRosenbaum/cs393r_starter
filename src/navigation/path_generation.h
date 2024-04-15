@@ -14,7 +14,7 @@ namespace path_generation {
 
 struct Path {
   float curvature = 0;
-  float clearance = 10;
+  float clearance = 5;
   float free_path_length = 10;
   float dist_to_goal = 20;
   Eigen::Vector2f obstruction = Eigen::Vector2f::Zero();
@@ -28,12 +28,14 @@ void setPathOption(Path& path_option,
     float curvature,
     const std::vector<Eigen::Vector2f>& point_cloud,
     const vehicles::Car& robot_config,
-    const Vector2f goal);
+    const Vector2f goal,
+    const Vector2f global_goal);
 
 std::vector<Path> samplePathOptions(int num_options,
                                                     const std::vector<Eigen::Vector2f>& point_cloud,
                                                     const vehicles::Car& robot_config,
-                                                    const Vector2f goal);
+                                                    const Vector2f goal,
+                                                    const Vector2f global_goal);
 
 int selectPath(const std::vector<Path>& path_options);
 
