@@ -51,7 +51,8 @@ using vector_map::VectorMap;
 namespace slam {
 
 SLAM::SLAM() :
-    odom_initialized_(false) {}
+    odom_initialized_(false),
+    motion_model_ready_(false) {}
 
 void SLAM::CreateVisPublisher(ros::NodeHandle* n) {
     vis_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
@@ -84,55 +85,98 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
 
   // Disregard scans until motion model threshold has been met
   if (motion_model_ready_) {
-    // Loop through motion model candidate poses aliging received laser scan
-    for (auto &candidate : motion_model_) {
-      // Calculate transformation from candidate pose to reference
-      Eigen::Vector2f translation = candidate.loc - reference_scan_pose_.loc;
-      float rotation = AngleDiff(candidate.angle, candidate.angle);
 
-      // Transform laser scan to candidate pose frame
-      // TODO scan comes from "base_laser" should this be adjusted to "base_link" first?
+    // Convert laser scan to point cloud centered around base_link
+    float angle_inc = (angle_max - angle_min) / ranges.size();
+    reference_point_cloud_.clear();
+    for (std::size_t i = 0; i < ranges.size(); i++) {
+      // Ignore points that are not obstacles
+      if (ranges[i] >= range_max) {
+        continue;
+      }
 
+      // Create point coordinates in robot frame
+      const Eigen::Vector2f lidar_loc(0.2, 0);    // LiDAR is 20cm in front of base link
+      float theta = angle_inc * i + angle_min;    // angle_min is -2.35619
+      Eigen::Vector2f point(
+        ranges[i] * cos(theta) + lidar_loc.x(),
+        ranges[i] * sin(theta) + lidar_loc.y()
+      );
+
+      // Convert to map frame
+      const Eigen::Rotation2Df rotation_transform(reference_scan_pose_.angle);
+      point = reference_scan_pose_.loc + rotation_transform * point;
+
+      // Push into point cloud vector
+      reference_point_cloud_.push_back(point);
+
+      // Draw point visualization
+      visualization::DrawPoint(point, 0x5de053, vis_msg_);
     }
 
+    // Publish point cloud visualization
+    vis_msg_.header.stamp = ros::Time::now();
+    vis_pub_.publish(vis_msg_);
 
-    motion_model_ready_ = false;  // TODO Can this be moved out? Do ROS nodes have race conditions?
+    // Proceed with transforming laser scan into every candidate of the motion model
+    PrepareLaserTransformations(reference_point_cloud_);
   }
+}
+
+void SLAM::PrepareLaserTransformations(const std::vector<Eigen::Vector2f> &point_cloud) {
+  // Loop through motion model candidate poses aligning the point cloud from the reference
+  for (auto &candidate : candidates_) {
+
+    // Calculate transformation from candidate pose to reference
+    // Eigen::Vector2f translation = candidate.pose.loc - reference_scan_pose_.loc;
+    Eigen::Rotation2Df rotation_transform(AngleDiff(candidate.pose.angle, reference_scan_pose_.angle));
+
+    // TODO Optimize for not recalculating pointcloud here?
+
+    // Loop through reference pointcloud transforming it to candidate frame
+    for (const auto &point : point_cloud) {
+      Eigen::Vector2f new_point = rotation_transform * (point - reference_scan_pose_.loc) + candidate.pose.loc;
+
+      visualization::DrawPoint(new_point, 0x536de0, vis_msg_);
+    }
+
+    // Publish point cloud visualization
+    vis_msg_.header.stamp = ros::Time::now();
+    vis_pub_.publish(vis_msg_);
+    std::cout << "AAAA";
+    std::cin.get();
+
+    visualization::ClearVisualizationMsg(vis_msg_);
+  }
+
+  // Clear motion model flag
+  motion_model_ready_ = false;
 }
 
 void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
   // Keep track of odometry to estimate how far the robot has moved between poses.
 
-
-
-  // std::cout << odom_loc.x() << "\t" << odom_loc.y() << "\t" << odom_angle << std::endl;
-
   // Disregard first odometry reading, set pose variables
   if (!odom_initialized_) {
-    // current_pose_.loc = Vector2f(0, 0);
-    // current_pose_.angle = 0;
-
-    // reference_scan_pose_.loc = Vector2f(0,0);
-    // reference_scan_pose_.angle = 0;
-
     reference_scan_pose_.loc = current_pose_.loc;
     reference_scan_pose_.angle = current_pose_.angle;
 
     odom_initialized_ = true;
   }
-
   else {
     // Calculate pose change from odometry reading
-    Eigen::Vector2f odom_translation = odom_loc - prev_odom_pose_.loc; // TODO Moving forward gives a negative difference for some reason
+    Eigen::Vector2f odom_translation = odom_loc - prev_odom_pose_.loc;
     float odom_rotation = AngleDiff(odom_angle, prev_odom_pose_.angle);
 
     // Ignore unrealistic jumps in odometry
     if (odom_translation.norm() < 1.0 && abs(odom_rotation) < M_PI_4) {
+
+
       // Transform odometry pose change to map frame
       Eigen::Rotation2Df rotation_transform(AngleDiff(current_pose_.angle, odom_angle));
       Eigen::Vector2f map_translation = rotation_transform * odom_translation;
 
-      // Update robot location based purely on odometry
+      // Keep track of pose change from odometry to estimate how far the robot has moved. Update robot location (in map frame) based on this
       current_pose_.loc += map_translation;
       current_pose_.angle += odom_rotation;
 
@@ -147,13 +191,14 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
     }
   }
 
-  // Update previous odometry
+  // Update previous odometry reading
   prev_odom_pose_.loc = odom_loc;
   prev_odom_pose_.angle = odom_angle;
 }
 
-void SLAM::PrepareMotionModel(const Pose pose) {
-  // Clear particle visualization
+void SLAM::PrepareMotionModel(const Pose pose_in_map) {
+  // Clear motion model and particle visualization
+  candidates_.clear();
   visualization::ClearVisualizationMsg(vis_msg_);
 
   // Calculate number of divisions (1/2 loop iterations) in each dimension x, y, theta
@@ -161,44 +206,38 @@ void SLAM::PrepareMotionModel(const Pose pose) {
   const static int y_iterations = std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION);
   const static int theta_iterations = std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION);
 
-  // std::cout << pose.loc.x() << "\t" << pose.loc.y() << "\t" << pose.angle << std::endl;
-  // std::cout << "=====" << std::endl;
-
-  // int x_iterations = std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION);
-  // int y_iterations = std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION);
-  // int theta_iterations = std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION);
-
   // Triple loop to populate motion model poses with variance in each dimension. This is esssentially a cube of possibilities
   for (int theta_i = -theta_iterations; theta_i <= theta_iterations; theta_i++) {
     for (int  y_i = -y_iterations; y_i <= y_iterations; y_i++) {
       for (int x_i = -x_iterations; x_i <= x_iterations; x_i++) {
-        // Create pose candidate
-        Pose candidate; // TODO Add constructor?
-        candidate.loc = Eigen::Vector2f{
-          pose.loc.x() + x_i * MOTION_MODEL_X_RESOLUTION,
-          pose.loc.y() + y_i * MOTION_MODEL_Y_RESOLUTION,
+        // Create pose candidate in map frame. Rotate volume based on direction of car
+        const Eigen::Rotation2Df rotation_transform(pose_in_map.angle);
+        Pose candidate_pose;
+        candidate_pose.loc = pose_in_map.loc + rotation_transform * Eigen::Vector2f{
+          x_i * MOTION_MODEL_X_RESOLUTION,
+          y_i * MOTION_MODEL_Y_RESOLUTION
         };
-        candidate.angle = pose.angle + theta_i * MOTION_MODEL_THETA_RESOLUTION;
+        candidate_pose.angle = pose_in_map.angle + theta_i * MOTION_MODEL_THETA_RESOLUTION;
 
-        // std::cout << x_i << "\t";
 
-        // std::cout << candidate.loc.x() << "\t" << candidate.loc.y() << "\t" << candidate.angle << std::endl;
+
+        // Push a new candidate into the candidates vector
+        Candidate candidate;
+        candidate.pose = candidate_pose;
+        candidates_.push_back(candidate);
 
         // Draw particle visualization
-        visualization::DrawParticle(candidate.loc, candidate.angle, vis_msg_);
+        visualization::DrawParticle(candidate_pose.loc, candidate_pose.angle, vis_msg_);
       }
-      // std::cout << "-----" << std::endl;
     }
   }
 
-  // Publish particle visualization
+  // Publish particles visualization
   vis_msg_.header.stamp = ros::Time::now();
   vis_pub_.publish(vis_msg_);
 
-  // std::cin.get();
-
   // Update reference scan pose and set motion model flag
-  reference_scan_pose_ = current_pose_;
+  reference_scan_pose_ = pose_in_map;
   motion_model_ready_ = true;
 }
 
