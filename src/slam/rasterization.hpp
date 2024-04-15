@@ -21,19 +21,24 @@ public:
         generateLookupTable(points);
     }
 
-    double lookupProbability(const Eigen::Vector2f &point)
+    double lookupUnnormalizedProbability(const Eigen::Vector2f &point)
     {
         // calculate indices of point in image
         const auto indices {computeIndices(point)};
         if (indices[0] == -1 || indices[1] == -1) {return 0.d;}
 
         // if here, the point is within the canvas
-        return (*_image)[indices[0]][indices[1]];
+        return (*_table)[indices[0]][indices[1]];
     }
 
-    void saveAsPPM(const std::string &path)
+    double getPeak()
     {
-        const auto pixels = *_image;
+        return 1.d / sqrt(2 * M_PI * _sigma); 
+    }
+
+    void exportAsPPM(const std::string &path)
+    {
+        const auto pixels = *_table;
         std::ofstream outFile(path);
 
         // Write PPM header
@@ -41,10 +46,18 @@ public:
         outFile << pixels[0].size() << " " << pixels.size() << "\n"; // Width and height
         outFile << "255\n"; // Maximum color value (for 8-bit grayscale)
 
+        // find highest magnitude pixel
+        int max_value {};
+        for (const auto &row : pixels) {
+            for (const auto &value : row) {
+                if (value > max_value) {max_value = value;}
+            }
+        }
+
         // Write pixel data
         for (auto row : pixels) {
             for (auto value : row) {
-                int int_value = static_cast<int>(value * 255);
+                int int_value = static_cast<int>(255 * value / max_value);
                 if (int_value > 255) {
                     int_value = 255;
                 }
@@ -55,9 +68,9 @@ public:
         std::cout << "Saved image to " << path << std::endl;
     }
 
-    void saveAsPPMRandom(const std::string &path)
+    void exportAsPPMRandom(const std::string &path)
     {
-        const auto pixels = *_image;
+        const auto pixels = *_table;
         std::ofstream outFile(path);
 
         // Write PPM header
@@ -83,14 +96,14 @@ public:
 private:
     const float _resolution;
     const float _sigma;
-    std::unique_ptr<std::vector<std::vector<double>>> _image;
+    std::unique_ptr<std::vector<std::vector<double>>> _table;
     std::unique_ptr<const Eigen::Vector2f> _lower_left_corner;
     std::unique_ptr<const Eigen::Vector2f> _upper_right_corner;
 
     std::array<int, 2> computeIndices(const Eigen::Vector2f &point)
     {
         // check if image not yet created (should never get here but just n case)
-        if (_image == nullptr || _lower_left_corner == nullptr || _upper_right_corner == nullptr) {
+        if (_table == nullptr || _lower_left_corner == nullptr || _upper_right_corner == nullptr) {
             std::cout << "Image is not initialized! Nothing to look up." << std::endl;
             return {-1, -1};
         }
@@ -105,7 +118,7 @@ private:
         int y_index {static_cast<int>((point.y() - _lower_left_corner->y()) / _resolution)};
 
         // make sure these indices fall within the canvas
-        if (!((x_index < static_cast<int>(_image->size())) && (x_index >= 0)) || !((y_index < static_cast<int>(_image->at(0).size())) && (y_index >= 0))) {
+        if (!((x_index < static_cast<int>(_table->size())) && (x_index >= 0)) || !((y_index < static_cast<int>(_table->at(0).size())) && (y_index >= 0))) {
             return {-1, -1};
         }
 
@@ -133,9 +146,9 @@ private:
         std::size_t size_x {static_cast<std::size_t>((_upper_right_corner->x() - _lower_left_corner->x()) / _resolution)};
         std::size_t size_y {static_cast<std::size_t>((_upper_right_corner->y() - _lower_left_corner->y()) / _resolution)};
 
-        _image = std::make_unique<std::vector<std::vector<double>>>(size_x, std::vector<double>(size_y, 0.d));
+        _table = std::make_unique<std::vector<std::vector<double>>>(size_x, std::vector<double>(size_y, 0.d));
 
-        std::cout << "Created an lookup table of size [" << _image->size() << ", " << _image->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
+        std::cout << "Created an lookup table of size [" << _table->size() << ", " << _table->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
 
         for (const auto &point : points) {
             seedGaussianKernel(point);
@@ -148,13 +161,13 @@ private:
         if (indices[0] == -1 || indices[1] == -1) {return;}
 
         // get all points that should have values
-        float d_three_sigma {5 * _sigma}; // !!! this maybe should be chamged back to 3 for efficiency but 5 is PRETTY
+        float d_three_sigma {3 * _sigma};
         int d_pixels {static_cast<int>(d_three_sigma / _resolution)};
 
         // evaluate the Gaussian at these points (in the center) based on distance from point
-        for (int i = std::max(indices[0] - d_pixels, 0); i <= std::min(indices[0] + d_pixels, static_cast<int>(_image->size()) - 1); i++) {
+        for (int i = std::max(indices[0] - d_pixels, 0); i <= std::min(indices[0] + d_pixels, static_cast<int>(_table->size()) - 1); i++) {
             
-            for (int j = std::max(indices[1] - d_pixels, 0); j <= std::min(indices[1] + d_pixels, static_cast<int>((*_image)[0].size()) - 1); j++) {
+            for (int j = std::max(indices[1] - d_pixels, 0); j <= std::min(indices[1] + d_pixels, static_cast<int>((*_table)[0].size()) - 1); j++) {
 
                 // calculate the distance from the center to the pixel in pixels
                 double l2_pixels {sqrt(pow(i - indices[0], 2) + pow(j - indices[1], 2))};
@@ -166,10 +179,11 @@ private:
                     float l2_m {static_cast<float>(l2_pixels * _resolution)};
                     
                     // and evaulate the Gaussian at this distance
-                    auto prob {exp(-0.5 * l2_m / pow(_sigma, 2))};
+                    auto prob {exp(-0.5 * pow(l2_m / _sigma, 2))};
 
-                    // ? should this be a sum or a max? unclear from paper, let's try sum for now
-                    (*_image)[i][j] += prob;
+                    // paper suggest this should be a max of all the possible probability values, is this right?
+                    // (*_table)[i][j] += prob;
+                    (*_table)[i][j] = std::max(prob, (*_table)[i][j]);
                 }
             }
         }

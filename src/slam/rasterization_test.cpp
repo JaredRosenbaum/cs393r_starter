@@ -8,7 +8,7 @@ int main(int argc, char** argv)
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dis(-10, 10);
-    std::uniform_real_distribution<float> dis2(-3, 3);
+    std::uniform_real_distribution<float> dis2(-10, 10);
 
     std::vector<Eigen::Vector2f> points;
     for (int i = 0; i <= 1081; i++) {
@@ -31,7 +31,7 @@ int main(int argc, char** argv)
     // fine table
     auto fine_table_start {std::chrono::high_resolution_clock::now()};
 
-    float fine_resolution {0.01}; // ! paper actually uses 0.03
+    float fine_resolution {0.03}; // ! paper actually uses 0.03
     const auto fine_table {std::make_unique<rasterization::LookupTable>(points, fine_resolution, sigma)};
 
     auto fine_table_end {std::chrono::high_resolution_clock::now()};
@@ -39,10 +39,18 @@ int main(int argc, char** argv)
     std::cout << "\t>> Created fine lookup table in " << fine_table_duration.count() << " us." << std::endl;
 
     // saving images to make sure pixels look good
-    coarse_table->saveAsPPM("/home/dev/cs393r_starter/images/pixels_coarse.ppm");
-    coarse_table->saveAsPPMRandom("/home/dev/cs393r_starter/images/pixels_coarse_random.ppm");
-    fine_table->saveAsPPM("/home/dev/cs393r_starter/images/pixels_fine.ppm");
-    fine_table->saveAsPPMRandom("/home/dev/cs393r_starter/images/pixels_fine_random.ppm");
+    coarse_table->exportAsPPM("/home/dev/cs393r_starter/images/pixels_coarse.ppm");
+    coarse_table->exportAsPPMRandom("/home/dev/cs393r_starter/images/pixels_coarse_random.ppm");
+    fine_table->exportAsPPM("/home/dev/cs393r_starter/images/pixels_fine.ppm");
+    fine_table->exportAsPPMRandom("/home/dev/cs393r_starter/images/pixels_fine_random.ppm");
+
+    float score {};
+    for (const auto &point : points) {
+        score += fine_table->lookupUnnormalizedProbability(point);
+    }
+    // score /= (points.size() * fine_table->getPeak());
+    score /= (points.size());
+    std::cout << score << std::endl;
 
     // now perform lookups a lot of times for all points and see the efficiency
     int n_loops {static_cast<int>(1e6)};
@@ -51,7 +59,7 @@ int main(int argc, char** argv)
     for (int i = 0; i < n_loops; i++) {
         float score {};
         for (const auto &point : points) {
-            score += coarse_table->lookupProbability(point);
+            score += coarse_table->lookupUnnormalizedProbability(point);
         }
     }
     auto coarse_end_time {std::chrono::high_resolution_clock::now()};
@@ -62,7 +70,7 @@ int main(int argc, char** argv)
     for (int i = 0; i < n_loops; i++) {
         float score {};
         for (const auto &point : points) {
-            score += fine_table->lookupProbability(point);
+            score += fine_table->lookupUnnormalizedProbability(point);
         }
     }
     auto fine_end_time {std::chrono::high_resolution_clock::now()};
@@ -73,16 +81,22 @@ int main(int argc, char** argv)
     for (int i = 0; i < 1000; i++) {
         float coarse_score {};
         float fine_score {};
-        for (auto &point : points) {
-            point.y() += 0.01;
-            auto prob {coarse_table->lookupProbability(point)};
+
+        for (const auto &point : points) {
+            auto prob {coarse_table->lookupUnnormalizedProbability(point)};
             coarse_score += prob;
         }
-        for (const auto &point : points) {
-            // point.y() += 0.01;
-            auto prob {fine_table->lookupProbability(point)};
+        // coarse_score /= (coarse_table->getPeak() * points.size());
+        coarse_score /= (points.size());
+
+        for (auto &point : points) {
+            auto prob {fine_table->lookupUnnormalizedProbability(point)};
             fine_score += prob;
+            point.y() += 0.01;
         }
+        // fine_score /= (fine_table->getPeak() * points.size());
+        fine_score /= (points.size());
+
         if (i % 10 == 0) {
             std::cout << coarse_score << ", " << fine_score << std::endl;
         }
