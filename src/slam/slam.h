@@ -92,6 +92,9 @@ class SLAM {
   // Get latest robot pose.
   void GetPose(Eigen::Vector2f* loc, float* angle) const;
 
+  // Calculate covariance for a set of candidates
+  Eigen::Matrix3f SLAM::CalculateCovariance(std::vector<Candidate> candidates);
+
  private:
   ros::Publisher vis_pub_;
   amrl_msgs::VisualizationMsg vis_msg_;

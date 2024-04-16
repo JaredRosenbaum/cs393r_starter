@@ -145,17 +145,7 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     }
     selected_state.point_cloud = transformed_point_cloud;
 
-    Eigen::Matrix3f K = Eigen::Matrix3f::Zero();
-    Eigen::Vector3f u = Eigen::Vector3f::Zero();
-    double s = 0;
-    for (auto &candidate : candidates_){
-      Eigen::Vector3f x_i(candidate.pose.loc.x(), candidate.pose.loc.y(), candidate.pose.angle); // I know its ugly let me live steven
-      K += x_i*x_i.transpose()*candidate.p_motion*candidate.p_scan; //^
-      u += x_i*candidate.p_motion*candidate.p_scan;
-      s += candidate.p_motion*candidate.p_scan;
-    }
-
-    selected_state.cov = 1/s*K-(1/(s*s))*u*u.transpose();
+    selected_state.cov = CalculateCovariance(candidates_);
     std::cout << "Selected: " << selected_state.pose.loc.transpose() << " at angle " << selected_state.pose.angle << std::endl;
     std::cout << "With covariance " << selected_state.cov << std::endl;
 
@@ -340,6 +330,20 @@ Eigen::Matrix3f SLAM::StateTransform(int ind2, int ind1){
   }
   
   return transform;
+}
+
+Eigen::Matrix3f SLAM::CalculateCovariance(std::vector<Candidate> candidates){
+    Eigen::Matrix3f K = Eigen::Matrix3f::Zero();
+    Eigen::Vector3f u = Eigen::Vector3f::Zero();
+    double s = 0;
+    for (auto &candidate : candidates){
+      Eigen::Vector3f x_i(candidate.pose.loc.x(), candidate.pose.loc.y(), candidate.pose.angle); // I know its ugly let me live steven
+      K += x_i*x_i.transpose()*candidate.p_motion*candidate.p_scan; //^
+      u += x_i*candidate.p_motion*candidate.p_scan;
+      s += candidate.p_motion*candidate.p_scan;
+    }
+
+    return 1/s*K-(1/(s*s))*u*u.transpose();
 }
 
 
