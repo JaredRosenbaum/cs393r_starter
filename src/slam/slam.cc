@@ -116,18 +116,28 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     vis_pub_.publish(vis_msg_);
 
     // Proceed with transforming laser scan into every candidate of the motion model
-    ConfigureCandidates(current_point_cloud_);
-
+    if(!previous_point_cloud_.empty()){
+      ConfigureCandidates(current_point_cloud_, previous_point_cloud_);
+    }
+    // With the candidates configured, archive the current point cloud to be used at the next step
+    previous_point_cloud_ = current_point_cloud_;
     // Clear motion model flag
     motion_model_ready_ = false;
   }
 }
 
-void SLAM::ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud) {
+void SLAM::ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, const std::vector<Eigen::Vector2f> &stored_point_cloud) {
   // Loop through each candidate configuring their probabilites
+  const float sigma {0.1f};
+  float fine_resolution {0.03}; 
+  const auto lookup_table {std::make_unique<rasterization::LookupTable>(point_cloud, fine_resolution, sigma)};
+  // Note: Save to make sure it looks good, can comment
+  lookup_table->exportAsPPM("/home/jared/CS393/cs393r_starter/images/lookup_table.ppm"); //TODO workstation changes
+  // lookup_table->exportAsPPMRandom("/home/jared/CS393/cs393r_starter/images/pixels_coarse_random.ppm");
+
   for (auto &candidate : candidates_) {
     // Candidate pose rotation
-    Eigen::Rotation2Df rotation_transform(candidate.pose.angle);
+    Eigen::Rotation2Df rotation_transform(candidate.pose.angle); //Note: Jared wishes he knew this existed before!
 
     // Loop through point cloud transforming it to candidate frame
     std::vector<Eigen::Vector2f> candidate_point_cloud;
@@ -145,7 +155,21 @@ void SLAM::ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud) 
 
     // visualization::ClearVisualizationMsg(vis_msg_);
 
-    // TODO Continue here with Jared's math to score the candidate's probabilities (p_motion, p_scan)
+    //. Observation model
+    // p(z|x_i,m)
+    double score {};
+    for (const auto &point : candidate_point_cloud) {
+      // Log probabilities
+      score += log(lookup_table->lookupUnnormalizedProbability(point));
+      //? Gamma for confidence?
+    }
+    candidate.p_scan = score;
+    //. Motion model
+    // p(x_i|x_i-1,u)
+    
+    
+
+
   }
 }
 

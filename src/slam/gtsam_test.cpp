@@ -172,22 +172,22 @@ int main(int argc, char **argv)
 
     graph.print();
 
-    std::cout << "Iterating over factors in the graph:" << std::endl;
-    for (size_t i = 0; i < graph.size(); ++i) {
-        const NonlinearFactor::shared_ptr factor = graph.at(i);
+    // std::cout << "Iterating over factors in the graph:" << std::endl;
+    // for (size_t i = 0; i < graph.size(); ++i) {
+    //     const NonlinearFactor::shared_ptr factor = graph.at(i);
         
-        // Check factor type using dynamic_pointer_cast
-        if (const BetweenFactor<Pose2>* betweenFactor = dynamic_cast<const BetweenFactor<Pose2>*>(factor.get())) {
-            Key key1 = betweenFactor->key1();
-            Key key2 = betweenFactor->key2();
-            Pose2 measurement = betweenFactor->measured();
-            SharedNoiseModel noiseModel = betweenFactor->noiseModel();
+    //     // Check factor type using dynamic_pointer_cast
+    //     if (const BetweenFactor<Pose2>* betweenFactor = dynamic_cast<const BetweenFactor<Pose2>*>(factor.get())) {
+    //         Key key1 = betweenFactor->key1();
+    //         Key key2 = betweenFactor->key2();
+    //         Pose2 measurement = betweenFactor->measured();
+    //         SharedNoiseModel noiseModel = betweenFactor->noiseModel();
 
-            std::cout << "BetweenFactor: Keys(" << key1 << ", " << key2 << "), Measurement(" << measurement << "), Noise(" << noiseModel << ")" << std::endl;
-        } else {
-            std::cout << "Unknown factor type!" << std::endl;
-        }
-    }
+    //         std::cout << "BetweenFactor: Keys(" << key1 << ", " << key2 << "), Measurement(" << measurement << "), Noise(" << noiseModel << ")" << std::endl;
+    //     } else {
+    //         std::cout << "Unknown factor type!" << std::endl;
+    //     }
+    // }
 
     // set initial values
     Values initial_estimate;

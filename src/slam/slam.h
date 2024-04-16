@@ -30,6 +30,8 @@
 #include "visualization/visualization.h"
 #include "amrl_msgs/VisualizationMsg.h"
 
+#include "rasterization.hpp"
+
 #ifndef SRC_SLAM_H_
 #define SRC_SLAM_H_
 
@@ -72,7 +74,7 @@ class SLAM {
                     float angle_max);
   
   // Compute point clouds for each candidate and score their probabilities
-  void ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud);
+  void ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, const std::vector<Eigen::Vector2f> &stored_point_cloud);
 
   // Observe new odometry-reported location.
   void ObserveOdometry(const Eigen::Vector2f& odom_loc,
@@ -100,6 +102,7 @@ class SLAM {
   bool motion_model_ready_;    // motion model 
   
   std::vector<Eigen::Vector2f> current_point_cloud_;  // laser scan at current time in robot frame
+  std::vector<Eigen::Vector2f> previous_point_cloud_;  // laser scan at current time in robot frame
 
   std::vector<Candidate> candidates_;   // candidate vector of possible next states
   std::vector<State> state_chain_;      // vector of selected states
