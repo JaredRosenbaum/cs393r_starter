@@ -83,8 +83,8 @@ class SLAM {
   // Calculate motion model for scan matching
   void PrepareMotionModel(const Pose odom_change);
 
-  // Get transform between two states
-  void StateTransform(int ind2, int ind1 = 0);
+  // Get transformation matrix between two states
+  Eigen::Matrix3f StateTransform(int ind2, int ind1 = 0);
 
   // Get latest map.
   std::vector<Eigen::Vector2f> GetMap();

@@ -148,7 +148,8 @@ private:
 
         _table = std::make_unique<std::vector<std::vector<double>>>(size_x, std::vector<double>(size_y, 0.d));
 
-        std::cout << "Created an lookup table of size [" << _table->size() << ", " << _table->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
+        // ! Steven, I commented this out because it was obnoxious <3
+        // std::cout << "Created an lookup table of size [" << _table->size() << ", " << _table->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
 
         for (const auto &point : points) {
             seedGaussianKernel(point);

@@ -125,6 +125,8 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     double best_score {0.d};
     Candidate best_cand;
     for (auto &candidate : candidates_){
+      // if (candidate.p_scan > best_score){
+      //   best_score = candidate.p_scan;
       if (candidate.p_motion*candidate.p_scan > best_score){
         best_score = candidate.p_motion*candidate.p_scan;
         best_cand = candidate;
@@ -143,16 +145,24 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     }
     selected_state.point_cloud = transformed_point_cloud;
 
-    //TODO JARED
-    // selected_state.cov = TODO;
+    Eigen::Matrix3f K = Eigen::Matrix3f::Zero();
+    Eigen::Vector3f u = Eigen::Vector3f::Zero();
+    double s = 0;
+    for (auto &candidate : candidates_){
+      Eigen::Vector3f x_i(candidate.pose.loc.x(), candidate.pose.loc.y(), candidate.pose.angle); // I know its ugly let me live steven
+      K += x_i*x_i.transpose()*candidate.p_motion*candidate.p_scan; //^
+      u += x_i*candidate.p_motion*candidate.p_scan;
+      s += candidate.p_motion*candidate.p_scan;
+    }
 
-    // state_chain_.push_back(selected_state);
+    selected_state.cov = 1/s*K-(1/(s*s))*u*u.transpose();
+    std::cout << "Selected: " << selected_state.pose.loc.transpose() << " at angle " << selected_state.pose.angle << std::endl;
+    std::cout << "With covariance " << selected_state.cov << std::endl;
+
+    state_chain_.push_back(selected_state);
 
     // With the candidates configured, archive the current point cloud to be used at the next step
     previous_point_cloud_ = (current_point_cloud_);
-
-    StateTransform(3);
-
 
     // Clear motion model flag
     motion_model_ready_ = false;
@@ -165,11 +175,8 @@ void SLAM::ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, 
   float fine_resolution {0.03}; 
   const auto lookup_table {std::make_unique<rasterization::LookupTable>(stored_point_cloud, fine_resolution, sigma)};
   // Note: Save to make sure it looks good, can comment
-  lookup_table->exportAsPPM("/home/jared/CS393/cs393r_starter/images/lookup_table.ppm"); //TODO workstation changes
-  // lookup_table->exportAsPPMRandom("/home/jared/CS393/cs393r_starter/images/pixels_coarse_random.ppm");
-  // for (const auto &point : point_cloud){
-  //   visualization::DrawPoint(point, 0xfcba03, vis_msg_);
-  // }
+  // lookup_table->exportAsPPM("/home/jared/CS393/cs393r_starter/images/lookup_table.ppm"); //TODO workstation changes
+
 
   for (auto &candidate : candidates_) {
     // Candidate pose rotation
@@ -180,7 +187,7 @@ void SLAM::ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, 
     for (const auto &point : point_cloud) {
       Eigen::Vector2f transformed_point = rotation_transform * point + candidate.pose.loc;
       candidate_point_cloud.push_back(transformed_point);
-      // visualization::DrawPoint(transformed_point, 0x536de0, vis_msg_);
+      // visualization::DrawPoint(transformed_point, 0x536de0, vis_msg_); //! Uncomment for visualization
     }
     
 
@@ -198,7 +205,7 @@ void SLAM::ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, 
     // p(x_i|x_i-1,u)
 
     
-    // // Publish point cloud visualization
+    // //! Publish point cloud visualization
     // for (const auto &point : stored_point_cloud){
     //   visualization::DrawPoint(point, 0xfcba03, vis_msg_);
     // }
@@ -206,8 +213,8 @@ void SLAM::ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, 
     // vis_pub_.publish(vis_msg_);
     // std::cout << "AAAA";
     // std::cin.get();
-
     // visualization::ClearVisualizationMsg(vis_msg_);
+
 
 
   }
@@ -313,35 +320,26 @@ vector<Vector2f> SLAM::GetMap() {
 }
 
 
-void SLAM::StateTransform(int ind2, int ind1){
-  State statey;
-  Eigen::Vector2f vec(1.0f, 1.0f);
-  statey.pose.loc = vec;
-  statey.pose.angle = 0;
-  state_chain_.push_back(statey);
-  state_chain_.push_back(statey);
-  state_chain_.push_back(statey);
-  state_chain_.push_back(statey);
-
-  if (static_cast<int> (state_chain_.size()) <= ind2+1) return;
+Eigen::Matrix3f SLAM::StateTransform(int ind2, int ind1){
+  // Defaults to start at the 0th index if only 1 index input. 
+  if (static_cast<int> (state_chain_.size()) <= ind2) return Eigen::Matrix3f::Identity();
 
   // Accumulate the transforms between the two states
   Eigen::Matrix3f transform;
-  transform << cos(cos(state_chain_[ind1+1].pose.angle)), -sin(state_chain_[ind1+1].pose.angle), state_chain_[ind1+1].pose.loc.x(),
+  transform << cos((state_chain_[ind1+1].pose.angle)), -sin(state_chain_[ind1+1].pose.angle), state_chain_[ind1+1].pose.loc.x(),
                 sin((state_chain_[ind1+1].pose.angle)), cos(state_chain_[ind1+1].pose.angle), state_chain_[ind1+1].pose.loc.y(),
                 0, 0, 1;
   if (ind2 - ind1 > 1){
     for (int i = ind1+2; i <= ind2; i++){
-      std::cout << transform << std::endl;
       Eigen::Matrix3f chain_transform;
-      chain_transform << cos(cos(state_chain_[i].pose.angle)), -sin(state_chain_[i].pose.angle), state_chain_[i].pose.loc.x(),
+      chain_transform << cos((state_chain_[i].pose.angle)), -sin(state_chain_[i].pose.angle), state_chain_[i].pose.loc.x(),
                         sin((state_chain_[i].pose.angle)), cos(state_chain_[i].pose.angle), state_chain_[i].pose.loc.y(),
                         0, 0, 1;
       transform = transform*chain_transform;
     }
   }
   
-
+  return transform;
 }
 
 
