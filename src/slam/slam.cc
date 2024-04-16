@@ -119,8 +119,41 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     if(!previous_point_cloud_.empty()){
       ConfigureCandidates(current_point_cloud_, previous_point_cloud_);
     }
+
+    // TODO: Should this occur here or be moved?
+    // Select best candidate
+    double best_score {0.d};
+    Candidate best_cand;
+    for (auto &candidate : candidates_){
+      if (candidate.p_motion*candidate.p_scan > best_score){
+        best_score = candidate.p_motion*candidate.p_scan;
+        best_cand = candidate;
+      }
+    }
+    // Populate state
+    // State selected_state;
+    // selected_state.pose = best_cand.pose;
+
+    // //! is there a better way to populate this pointcloud?
+    // Eigen::Rotation2Df rotation_transform(best_cand.pose.angle);
+    // std::vector<Eigen::Vector2f> transformed_point_cloud;
+    // for (const auto &point : current_point_cloud_) {
+    //   Eigen::Vector2f transformed_point = rotation_transform * point + best_cand.pose.loc;
+    //   transformed_point_cloud.push_back(transformed_point);
+    // }
+    // selected_state.point_cloud = transformed_point_cloud;
+
+    //TODO JARED
+    // selected_state.cov = TODO;
+
+    // state_chain_.push_back(selected_state);
+
     // With the candidates configured, archive the current point cloud to be used at the next step
-    previous_point_cloud_ = current_point_cloud_;
+    previous_point_cloud_ = (current_point_cloud_);
+
+    // StateTransform(3);
+
+
     // Clear motion model flag
     motion_model_ready_ = false;
   }
@@ -130,44 +163,52 @@ void SLAM::ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, 
   // Loop through each candidate configuring their probabilites
   const float sigma {0.1f};
   float fine_resolution {0.03}; 
-  const auto lookup_table {std::make_unique<rasterization::LookupTable>(point_cloud, fine_resolution, sigma)};
+  const auto lookup_table {std::make_unique<rasterization::LookupTable>(stored_point_cloud, fine_resolution, sigma)};
   // Note: Save to make sure it looks good, can comment
   lookup_table->exportAsPPM("/home/jared/CS393/cs393r_starter/images/lookup_table.ppm"); //TODO workstation changes
   // lookup_table->exportAsPPMRandom("/home/jared/CS393/cs393r_starter/images/pixels_coarse_random.ppm");
+  // for (const auto &point : point_cloud){
+  //   visualization::DrawPoint(point, 0xfcba03, vis_msg_);
+  // }
 
   for (auto &candidate : candidates_) {
     // Candidate pose rotation
-    Eigen::Rotation2Df rotation_transform(candidate.pose.angle); //Note: Jared wishes he knew this existed before!
+    Eigen::Rotation2Df rotation_transform(candidate.pose.angle);
 
     // Loop through point cloud transforming it to candidate frame
     std::vector<Eigen::Vector2f> candidate_point_cloud;
     for (const auto &point : point_cloud) {
       Eigen::Vector2f transformed_point = rotation_transform * point + candidate.pose.loc;
       candidate_point_cloud.push_back(transformed_point);
-      // visualization::DrawPoint(transformed_point, 0x536de0, vis_msg_);
+      visualization::DrawPoint(transformed_point, 0x536de0, vis_msg_);
     }
-
-    // Publish point cloud visualization
-    // vis_msg_.header.stamp = ros::Time::now();
-    // vis_pub_.publish(vis_msg_);
-    // std::cout << "AAAA";
-    // std::cin.get();
-
-    // visualization::ClearVisualizationMsg(vis_msg_);
+    
+    for (const auto &point : stored_point_cloud){
+      visualization::DrawPoint(point, 0xfcba03, vis_msg_);
+    }
 
     //. Observation model
     // p(z|x_i,m)
     double score {};
     for (const auto &point : candidate_point_cloud) {
       // Log probabilities
-      score += log(lookup_table->lookupUnnormalizedProbability(point));
+      score += (lookup_table->lookupUnnormalizedProbability(point));
       //? Gamma for confidence?
+
     }
-    candidate.p_scan = score;
+    candidate.p_scan = score/candidate_point_cloud.size();
     //. Motion model
     // p(x_i|x_i-1,u)
+    std::cout << candidate.pose.loc.transpose() << " " << candidate.pose.angle << " " << candidate.p_scan << std::endl;
+
     
-    
+    // Publish point cloud visualization
+    vis_msg_.header.stamp = ros::Time::now();
+    vis_pub_.publish(vis_msg_);
+    std::cout << "AAAA";
+    std::cin.get();
+
+    visualization::ClearVisualizationMsg(vis_msg_);
 
 
   }
@@ -271,5 +312,38 @@ vector<Vector2f> SLAM::GetMap() {
   // and their respective scans.
   return map;
 }
+
+
+void SLAM::StateTransform(int ind2, int ind1){
+  State statey;
+  Eigen::Vector2f vec(1.0f, 1.0f);
+  statey.pose.loc = vec;
+  statey.pose.angle = 0;
+  state_chain_.push_back(statey);
+  state_chain_.push_back(statey);
+  state_chain_.push_back(statey);
+  state_chain_.push_back(statey);
+
+  if (static_cast<int> (state_chain_.size()) <= ind2+1) return;
+
+  // Accumulate the transforms between the two states
+  Eigen::Matrix3f transform;
+  transform << cos(cos(state_chain_[ind1+1].pose.angle)), -sin(state_chain_[ind1+1].pose.angle), state_chain_[ind1+1].pose.loc.x(),
+                sin((state_chain_[ind1+1].pose.angle)), cos(state_chain_[ind1+1].pose.angle), state_chain_[ind1+1].pose.loc.y(),
+                0, 0, 1;
+  if (ind2 - ind1 > 1){
+    for (int i = ind1+2; i <= ind2; i++){
+      Eigen::Matrix3f chain_transform;
+      chain_transform << cos(cos(state_chain_[i].pose.angle)), -sin(state_chain_[i].pose.angle), state_chain_[i].pose.loc.x(),
+                        sin((state_chain_[i].pose.angle)), cos(state_chain_[i].pose.angle), state_chain_[i].pose.loc.y(),
+                        0, 0, 1;
+      transform = transform*chain_transform;
+    }
+  }
+  
+  std::cout << transform << std::endl;
+
+}
+
 
 }  // namespace slam

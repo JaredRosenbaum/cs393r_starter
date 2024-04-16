@@ -9,9 +9,9 @@
 // #define MOTION_MODEL_Y_LIMIT                0.5     // m
 // #define MOTION_MODEL_THETA_RESOLUTION       0.05    // ~2.86deg
 // #define MOTION_MODEL_THETA_LIMIT            0.35    // ~20deg
-#define MOTION_MODEL_X_RESOLUTION           1.0    // m
+#define MOTION_MODEL_X_RESOLUTION           0.5    // m
 #define MOTION_MODEL_X_LIMIT                1.0     // m
-#define MOTION_MODEL_Y_RESOLUTION           1.0    // m
+#define MOTION_MODEL_Y_RESOLUTION           0.5    // m
 #define MOTION_MODEL_Y_LIMIT                1.0     // m
 #define MOTION_MODEL_THETA_RESOLUTION       0.4    // ~2.86deg
 #define MOTION_MODEL_THETA_LIMIT            0.4    // ~20deg
