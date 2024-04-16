@@ -128,7 +128,7 @@ void LaserCallback(const sensor_msgs::LaserScan& msg) {
       msg.range_max,
       msg.angle_min,
       msg.angle_max);
-  // PublishMap();
+  // PublishMap();    // TODO uncomment
   PublishPose();
 }
 
@@ -166,10 +166,10 @@ int main(int argc, char** argv) {
 
   slam_.CreateVisPublisher(&n);
 
-  // ros::Subscriber laser_sub = n.subscribe(
-  //     FLAGS_laser_topic.c_str(),
-  //     1,
-  //     LaserCallback);
+  ros::Subscriber laser_sub = n.subscribe(
+      FLAGS_laser_topic.c_str(),
+      1,
+      LaserCallback);
   ros::Subscriber odom_sub = n.subscribe(
       FLAGS_odom_topic.c_str(),
       1,

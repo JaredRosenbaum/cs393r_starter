@@ -71,8 +71,8 @@ class SLAM {
                     float angle_min,
                     float angle_max);
   
-  // Compute laser scan transformations for motion model
-  void PrepareLaserTransformations(const std::vector<Eigen::Vector2f> &point_cloud);
+  // Compute point clouds for each candidate and score their probabilities
+  void ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud);
 
   // Observe new odometry-reported location.
   void ObserveOdometry(const Eigen::Vector2f& odom_loc,
@@ -97,13 +97,12 @@ class SLAM {
   bool odom_initialized_; // odometry flag
   Pose prev_odom_pose_;   // previous odometry-reported pose
   Pose reference_odom_pose_;
-  std::vector<Pose> motion_model_;  // motion model vector of poses
   bool motion_model_ready_;    // motion model 
   
-  std::vector<Eigen::Vector2f> reference_point_cloud_;  // reference laser scan
+  std::vector<Eigen::Vector2f> current_point_cloud_;  // laser scan at current time in robot frame
 
-  std::vector<Candidate> candidates_;   // candidate vector of possible next state
-  std::vector<State> state_chain_;
+  std::vector<Candidate> candidates_;   // candidate vector of possible next states
+  std::vector<State> state_chain_;      // vector of selected states
 
 };
 }  // namespace slam
