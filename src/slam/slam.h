@@ -72,26 +72,27 @@ struct Candidate {
 
 struct NonsequentialNode {
     int parent;
+    Pose rel_odom;
+    
     int graph_id;
-    // int child;
-    Pose relative_pose;
-    Eigen::Matrix3d relative_covariance;
+    gtsam::Pose2 abs_pose;
+    gtsam::Matrix rel_cov;
 }; // struct NonsequentialNode
 
 struct SequentialNode {
     const int id;
-    int graph_id;
-    // int child;
-    Pose relative_pose;
-    Eigen::Matrix3d relative_covariance;
-
-    const Pose raw_odometry;
+    const Pose rel_odom;
     const std::vector<Eigen::Vector2f> points; 
     std::shared_ptr<rasterization::LookupTable> lookup_table;
+    
     std::vector<NonsequentialNode> nodes;
+    
+    int graph_id;
+    gtsam::Pose2 abs_pose;
+    gtsam::Matrix rel_cov;
 
     SequentialNode(const int &identifier, const Pose &odom, const std::vector<Eigen::Vector2f> &cloud) 
-    : id(identifier), raw_odometry(odom), points(cloud)
+    : id(identifier), rel_odom(odom), points(cloud)
     {
         // raw_odometry = odom;
         lookup_table = std::make_shared<rasterization::LookupTable>(points, LOOKUP_TABLE_RESOLUTION, LOOKUP_TABLE_SIGMA);
@@ -115,16 +116,10 @@ class SLAM {
                     float range_max,
                     float angle_min,
                     float angle_max);
-  
-  // Compute point clouds for each candidate and score their probabilities
-  void ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, const std::vector<Eigen::Vector2f> &stored_point_cloud);
 
   // Observe new odometry-reported location.
   void ObserveOdometry(const Eigen::Vector2f& odom_loc,
                        const float odom_angle);
-  
-  // Calculate motion model for scan matching
-  void PrepareMotionModel(const Pose odom_change);
 
   // Get latest map.
   std::vector<Eigen::Vector2f> GetMap();
@@ -149,19 +144,11 @@ class SLAM {
 
   void optimizeChain();
 
-  void update(
+  void iterateSLAM(
     Pose &odom,
     std::vector<Eigen::Vector2f> &cloud);
-
-  void updatePairwiseSequential(
-        std::shared_ptr<SequentialNode> &new_node,
-        std::shared_ptr<SequentialNode> &existing_node);
-    
-  void updatePairwiseNonsequential(
-      std::shared_ptr<SequentialNode> &new_node,
-      std::shared_ptr<SequentialNode> &existing_node);
   
-  std::pair<Pose, Eigen::Matrix3d> coreUpdate(
+  std::pair<gtsam::Pose2, gtsam::Matrix> pairwiseComparison(
       std::shared_ptr<SequentialNode> &new_node,
       std::shared_ptr<SequentialNode> &existing_node);
 
@@ -175,14 +162,19 @@ class SLAM {
 
   Eigen::Matrix3f getTransformChain(int ind2, int ind1=0);
   Eigen::Matrix3f pose2Transform(const Pose &pose);
+
+  void transformPose(Pose &pose, const Eigen::Matrix3f &T);
+  void transformPose(Pose &pose, const Pose &P);
+  Pose transformPoseCopy(Pose &pose, const Eigen::Matrix3f &T);
+  Pose transformPoseCopy(Pose &pose, const Pose &P);
+  gtsam::Pose2 transformPoseCopy(const gtsam::Pose2 &pose, const Eigen::Matrix3f &T);
+  gtsam::Pose2 transformPoseCopy(const gtsam::Pose2 &pose, const gtsam::Pose2 &P);
   void transformPoses(std::vector<Pose> &poses, const Eigen::Matrix3f &T);
   void transformPoses(std::vector<Pose> &poses, const Pose &pose);
-  void transformPoints(std::vector<Eigen::Vector2f> &points, const Eigen::Matrix3f &T);
-  void transformPoints(std::vector<Eigen::Vector2f> &points, const Pose &pose);
-  void transformPose(Pose &pose, const Eigen::Matrix3f &T);
-  void transformPose(Pose &p, const Pose &pose);
   void transformPoint(Eigen::Vector2f &point, const Eigen::Matrix3f &T);
   void transformPoint(Eigen::Vector2f &point, const Pose &pose);
+  void transformPoints(std::vector<Eigen::Vector2f> &points, const Eigen::Matrix3f &T);
+  void transformPoints(std::vector<Eigen::Vector2f> &points, const Pose &pose);
 
 }; // class SLAM
 

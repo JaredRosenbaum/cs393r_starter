@@ -28,6 +28,7 @@
 // + finish GTSAM implementation and test
 // + covariances are sometimes NaN, figure out when this happens and how to fix it
 // + consider changing sampling limits and resolutions relative to odometry (so if we've moved farther, increase the size of the search space but keep the same number of samples?)
+// + make sample generation start at zero and move out to either side uniformly (so there's always one that's exactly 0, 0, 0 relative to odom)
 
 #include <algorithm>
 #include <cmath>
@@ -130,7 +131,7 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
   vis_pub_.publish(vis_msg_);
 
   // update SLAM
-  update(odom_change_, point_cloud);
+  iterateSLAM(odom_change_, point_cloud);
 
   // Clear motion model flag
   ready_for_slam_update_ = false;
@@ -200,7 +201,7 @@ vector<Vector2f> SLAM::GetMap() {
 // * Primary Update
 // -------------------------------------------
 
-void SLAM::update(
+void SLAM::iterateSLAM(
     Pose &odom,
     std::vector<Eigen::Vector2f> &cloud)
 {
@@ -210,19 +211,32 @@ void SLAM::update(
     std::cout << "=====================================" << std::endl;
 
     // . add new sequential state
-    std::cout << "Creating new state with " << cloud.size() << " points." << std::endl;
     auto new_state {std::make_shared<SequentialNode>(chain_.size(), odom, cloud)};
-    // new_state->lookup_table->exportAsPPM("/home/dev/cs393r_starter/images/test.ppm"); // ! this may be useful for debugging but it's like 10x slower to do
+    std::cout << "Creating new state with ID " << new_state->id << " and " << cloud.size() << " points." << std::endl;
 
     // compare with previous state and populate pose and covariance
     if (!chain_.empty()) {
-        updatePairwiseSequential(new_state, chain_[chain_.size() - 1]);
+        auto start_time {std::chrono::high_resolution_clock::now()};
+        int index {static_cast<int>(chain_.size()) - 1};
+
+        // perform the update (results same for sequenial and non-sequential scans, but the way they are stored is different)
+        auto results {pairwiseComparison(new_state, chain_[index])};
+
+        // convert relative pose to absolute pose using previous absolute pose
+        new_state->abs_pose = transformPoseCopy(results.first, chain_[index]->abs_pose);
+        new_state->rel_cov = results.second;
+
+        auto end_time {std::chrono::high_resolution_clock::now()};
+        auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
+        std::cout << ">> Finished sequential pose update in " << time_duration.count() << "us" << std::endl;
     } else {
-        new_state->relative_pose = Pose(0, 0, 0);
-        new_state->relative_covariance = Eigen::Matrix3d::Zero();
+        // new_state->abs_pose = gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle);
+        new_state->abs_pose = gtsam::Pose2(0, 0, 0);
+        new_state->rel_cov = gtsam::Matrix(Eigen::Matrix3d::Zero());
     }
 
-    std::cout << "Pose:\n" << new_state->relative_pose.loc.x() << ", " << new_state->relative_pose.loc.y() << ", " << new_state->relative_pose.angle << "\nCov:\n" << new_state->relative_covariance << std::endl;
+    // std::cout << "Pose:\n" << new_state->abs_pose.x() << ", " << new_state->abs_pose.y() << ", " << new_state->abs_pose.theta() << "\nCov:\n" << new_state->rel_cov << std::endl;
+    std::cout << "Pose:\n" << new_state->abs_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
 
     // and add it to the chain
     chain_.push_back(new_state);
@@ -230,36 +244,40 @@ void SLAM::update(
 
     // . now create all non-sequential states
     // for each comparison
-    for (int i = 0; i < depth_; i++) {
+    for (int i = 1; i <= depth_; i++) {
         int index {(static_cast<int>(chain_.size()) - 1) - i - 1};
         if (index < 0) {continue;}
         std::cout << "\nAdding nonsequential relation with " << index << std::endl;
-        updatePairwiseNonsequential(new_state, chain_[index]);
+
+        // get pose and covariance
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        // *SEVERE* THIS NEEDS TO HAVE PROPER ODOMETRY (BETWEEN NODES FED IN); IT DOES NOT NOW. MAYBE ADD IN A FUNCTION THAT WORKS BACKWARD TO GET IT
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        auto results {pairwiseComparison(new_state, chain_[index])};
+
+        // store them appropriately
+        NonsequentialNode node;
+        node.parent = chain_[index]->id;
+        node.rel_odom = transformPoseCopy(odom, chain_[index]->rel_odom);
+        node.abs_pose = transformPoseCopy(results.first, chain_[index]->abs_pose);
+        node.rel_cov = results.second;
+        new_state->nodes.push_back(node);
+
+        // std::cout << "Pose:\n" << node.relative_pose.loc.x() << ", " << node.relative_pose.loc.y() << ", " << node.relative_pose.angle << "\nCov:\n" << node.relative_covariance << std::endl;
+        std::cout << "Pose:\n" << node.abs_pose.x() << ", " << node.abs_pose.y() << ", " << node.abs_pose.theta() << "\nCov:\n" << node.rel_cov << std::endl;
     }
 
     // . perform pose graph optimization using GTSAM
     optimizeChain();
 
     // . now add visualization stuff here for debugging
-    // clear visualization
+    std::cout << "Trying to visualize..." << std::endl;
     visualization::ClearVisualizationMsg(vis_msg_);
 
-    std::cout << "Trying to visualize..." << std::endl;
-
     for (int i = 0; i < static_cast<int>(chain_.size()); i++) {
-        // get transform to root of chain
-        // std::cout << i << std::endl;
-        Eigen::Matrix3f root_tf {getTransformChain(i)};
-
-        // std::cout << "Transform between root and " << i << ":\n" << root_tf << std::endl;
-
         // transform cloud
         auto viz_points {chain_[i]->points};
-        transformPoints(viz_points, root_tf);
-
-        // transform pose
-        auto viz_pose {chain_[i]->relative_pose};
-        transformPose(viz_pose, root_tf);
+        transformPoints(viz_points, Pose(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y(), chain_[i]->abs_pose.theta()));
 
         // visualize cloud
         for (const auto &point : viz_points) {
@@ -267,15 +285,13 @@ void SLAM::update(
         }
 
         // visualize pose
-        visualization::DrawParticle(viz_pose.loc, viz_pose.angle, vis_msg_);
+        visualization::DrawParticle(Eigen::Vector2f(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y()), chain_[i]->abs_pose.theta(), vis_msg_);
 
         vis_msg_.header.stamp = ros::Time::now();
         vis_pub_.publish(vis_msg_);
 
         // std::string input;
         // std::getline(std::cin, input);
-
-        // maybe draw line between poses? doesn't seem necessary
     }
 
     auto end_time {std::chrono::high_resolution_clock::now()};
@@ -287,82 +303,54 @@ void SLAM::update(
 // * Pose Graph Optimization
 // -------------------------------------------
 
+// WIP
 void SLAM::optimizeChain()
 {
-    // TODO iterate over chain and add poses and covariances as factors, then give initial estimate and optimize, then update chain using the results
+    // // create GTSAM graph
+    // gtsam::NonlinearFactorGraph graph;
 
-    // create GTSAM graph
-    gtsam::NonlinearFactorGraph graph;
+    // // iterate over chain and add all points and initial estimates
+    // // ? need to associate poses with unique indexes for recovery
+    // int graph_id {0};
 
-    // iterate over chain and add all points and initial estimates
-    // ? need to associate poses with unique indexes for recovery
-    int graph_id {0};
+    // gtsam::Values initial_estimate;
 
-    // start by adding sequential poses to graph, make sure they don't change with optimization 
-    for (const auto &node : chain_) {
-        auto relative_pose {gtsam::Pose2(node->relative_pose.loc.x(), node->relative_pose.loc.y(), node->relative_pose.angle)};
+    // // start by adding sequential poses to graph, make sure they don't change with optimization 
+    // for (std::size_t i = 0; i < chain_.size(); i++) {
+    //     graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
+    //         graph_id,
+    //         graph_id + 1,
+    //         chain_[i]->abs_pose
+    //         gtsam::noiseModel::Gaussian::Covariance(chain_[i]->rel_cov)
+    //     ));
 
-        gtsam::Matrix relative_covariance {node->relative_covariance};
-        graph.add(gtsam::BetweenFactor<gtsam::Pose2>(graph_id, graph_id + 1, relative_pose, gtsam::noiseModel::Gaussian::Covariance(relative_covariance)));
-
-        graph_id++;
-    }
-
-    // optimize the graph
-    graph.print();
-
-    // use results to update the stored chain
-
-
+    //     graph_id++;
+    // }
 }
 
 // -------------------------------------------
 // * Updating Pairs
 // -------------------------------------------
 
-void SLAM::updatePairwiseSequential(
+std::pair<gtsam::Pose2, gtsam::Matrix> SLAM::pairwiseComparison(
     std::shared_ptr<SequentialNode> &new_node,
     std::shared_ptr<SequentialNode> &existing_node)
 {
-    auto start_time {std::chrono::high_resolution_clock::now()};
-
-    // perform the update (results same for sequenial and non-sequential scans, but the way they are stored is different)
-    auto results {coreUpdate(new_node, existing_node)};
-    new_node->relative_pose = results.first;
-    new_node->relative_covariance = results.second;
-
-    auto end_time {std::chrono::high_resolution_clock::now()};
-    auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
-    std::cout << ">> Finished sequential pose update in " << time_duration.count() << "us" << std::endl;
-}
-
-void SLAM::updatePairwiseNonsequential(
-    std::shared_ptr<SequentialNode> &new_node,
-    std::shared_ptr<SequentialNode> &existing_node)
-{
-    // perform the update (results same for sequenial and non-sequential scans, but the way they are stored is different)
-    auto results {coreUpdate(new_node, existing_node)};
-
-    NonsequentialNode node;
-    node.parent = existing_node->id;
-    node.relative_pose = results.first;
-    node.relative_covariance = results.second;
-    new_node->nodes.push_back(node);
-
-    std::cout << "Pose:\n" << node.relative_pose.loc.x() << ", " << node.relative_pose.loc.y() << ", " << node.relative_pose.angle << "\nCov:\n" << node.relative_covariance << std::endl;
-}
-
-std::pair<Pose, Eigen::Matrix3d> SLAM::coreUpdate(
-    std::shared_ptr<SequentialNode> &new_node,
-    std::shared_ptr<SequentialNode> &existing_node)
-{
+    // TODO check if odom needs to be updated here (ie. we have non-sequential poses) and make something to move through and collect them before passing to the below function
+    // check if nodes are not sequential; if not, need to compute the relative odometry
+    auto rel_odom {new_node->rel_odom};
+    if (new_node->id != existing_node->id + 1) {
+        Pose rel_pose(0, 0, 0);
+        for (int i = 0; i < new_node->id - existing_node->id - 1; i++) {
+            // std::cout << "Transforming " << rel_pose.loc.transpose() << ", " << rel_pose.angle << " using " << chain_[existing_node->id + i]->rel_odom.loc.transpose() << ", " << chain_[existing_node->id + i]->rel_odom.angle << std::endl;
+            transformPose(rel_pose, chain_[existing_node->id + i]->rel_odom);
+        }
+        rel_odom = rel_pose;
+        // std::cout << "Relative odom accumulated between nodes " << existing_node->id << " and " << new_node->id << ": " << rel_pose.loc.transpose() << ", " << rel_pose.angle << std::endl;
+    }
+    
     // generate candidates
-    auto candidates {generateCandidates(new_node->raw_odometry, new_node->points, existing_node->lookup_table, existing_node->points)};
-
-    // TODO make sure transforms are generated correctly, see which term tends to impact p more
-    // for (const auto &candidate : *candidates) {
-    //     std::cout << "\t" << candidate.p_motion << ", " << candidate.p_scan << ", " << candidate.p << std::endl;
-    // }
+    auto candidates {generateCandidates(rel_odom, new_node->points, existing_node->lookup_table, existing_node->points)};
 
     // calculate covariance
     auto covariance {calculateCovariance(candidates)};
@@ -376,39 +364,7 @@ std::pair<Pose, Eigen::Matrix3d> SLAM::coreUpdate(
             best_pose = (*candidates)[i].relative_pose;
         }
     }
-
-    // . visualize scan and pose compared to reference (this doesn't exactly work right now, need to test it out more)
-    // visualization::ClearVisualizationMsg(vis_msg_);
-
-    // // draw reference cloud
-    // for (const auto &point : existing_node->points) {
-    //     visualization::DrawPoint(point, 0xF633FF, vis_msg_);
-    // }
-
-    // // draw projected cloud
-    // auto cloud {new_node->points};
-    // Eigen::Matrix3f transform {pose2Transform(best_pose)};
-    // // std::cout << "\tProduced cloud transform:\n" << transform << std::endl;
-    // transformPoints(cloud, transform);
-    // for (const auto &point : cloud) {
-    //     visualization::DrawPoint(point, 0x33FF50, vis_msg_);
-    // }
-
-    // // draw pose
-    // visualization::DrawParticle(best_pose.loc, best_pose.angle, vis_msg_);
-
-    // // publish msg
-    // vis_msg_.header.stamp = ros::Time::now();
-    // vis_pub_.publish(vis_msg_);
-
-    // // wait for input
-    // std::string input;
-    // std::getline(std::cin, input);
-
-    // clear visualization
-    visualization::ClearVisualizationMsg(vis_msg_);
-
-    return std::make_pair<Pose, Eigen::Matrix3d>(std::move(best_pose), std::move(covariance));
+    return std::make_pair<gtsam::Pose2, gtsam::Matrix>(gtsam::Pose2(best_pose.loc.x(), best_pose.loc.y(), best_pose.angle), gtsam::Matrix(covariance));
 }
 
 // -------------------------------------------
@@ -468,7 +424,7 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
                 // . use motion model to fill in the p_motion
                 candidate.p_motion = motion_model.evaluate(Eigen::Vector3d(candidate_pose.loc.x(), candidate_pose.loc.y(), candidate_pose.angle));
 
-                // TODO now translate the scan to overlay (should already be rotated)
+                // . transform the points to the candidate frame
                 // transformPoints(cloud, Pose(odom.loc.x() * odom.angle, odom.loc.y() * odom.angle, 0));
                 auto cloud {points};
                 Eigen::Matrix3f transform {pose2Transform(candidate_pose)};
@@ -545,38 +501,7 @@ Eigen::Matrix3d SLAM::calculateCovariance(std::shared_ptr<std::vector<Candidate>
 // * Transforms
 // -------------------------------------------
 
-Eigen::Matrix3f SLAM::getTransformChain(int ind2, int ind1)
-{
-    // std::cout << "looking up transform between " << ind2 << " and " << ind1 << std::endl;
-    if (ind2 == ind1) {
-        return Eigen::Matrix3f::Identity();
-    }
-
-    // Defaults to start at the 0th index if only 1 index input. 
-    if (static_cast<int>(chain_.size()) <= ind2) {
-        return Eigen::Matrix3f::Identity();
-    }
-
-    // Accumulate the transforms between the two states
-    Eigen::Matrix3f transform;
-    transform << cos((chain_[ind1+1]->relative_pose.angle)), -sin(chain_[ind1+1]->relative_pose.angle), chain_[ind1+1]->relative_pose.loc.x(),
-                    sin((chain_[ind1+1]->relative_pose.angle)), cos(chain_[ind1+1]->relative_pose.angle), chain_[ind1+1]->relative_pose.loc.y(),
-                    0, 0, 1;
-    
-    if (!(ind2 - ind1 > 1)) {
-        return transform;
-    }
-
-    for (int i = ind1+2; i <= ind2; i++) {
-        Eigen::Matrix3f chain_transform;
-        chain_transform << cos((chain_[i]->relative_pose.angle)), -sin(chain_[i]->relative_pose.angle), chain_[i]->relative_pose.loc.x(),
-                            sin((chain_[i]->relative_pose.angle)), cos(chain_[i]->relative_pose.angle), chain_[i]->relative_pose.loc.y(),
-                            0, 0, 1;
-        transform = transform * chain_transform;
-    }
-
-    return transform;
-}
+// & convert pose to transform
 
 Eigen::Matrix3f SLAM::pose2Transform(const Pose &pose)
 {
@@ -587,12 +512,7 @@ Eigen::Matrix3f SLAM::pose2Transform(const Pose &pose)
     return transform;
 }
 
-void SLAM::transformPoses(std::vector<Pose> &poses, const Eigen::Matrix3f &T)
-{
-    for (auto &pose : poses) {
-        transformPose(pose, T);
-    }
-}
+// & transform pose
 
 void SLAM::transformPose(Pose &pose, const Eigen::Matrix3f &T)
 {
@@ -604,6 +524,107 @@ void SLAM::transformPose(Pose &pose, const Eigen::Matrix3f &T)
     pose.loc.x() = result(0, 2);
     pose.loc.y() = result(1, 2);
     pose.angle = atan2(result(1, 0), result(0, 0));
+}
+
+void SLAM::transformPose(Pose &pose, const Pose &P)
+{
+    // simple case for efficiently doing transforms without rotation
+    if (P.angle == 0) {
+        if (P.loc.x() == 0) {
+            pose.loc.y() += P.loc.y();
+        } else if (P.loc.y() == 0) {
+            pose.loc.x() += P.loc.x();
+        } else {
+            pose.loc.x() += P.loc.x();
+            pose.loc.y() += P.loc.y();
+        }
+        return;
+    }
+
+    // doing full transformations
+    Eigen::Matrix3f transform;
+    transform << cos(P.angle), -sin(P.angle), P.loc.x(),
+                    sin(P.angle), cos(P.angle), P.loc.y(),
+                    0, 0, 1;
+    transformPose(pose, transform);
+}
+
+Pose SLAM::transformPoseCopy(Pose &pose, const Eigen::Matrix3f &T)
+{
+    auto p_copy {pose};
+    Eigen::Matrix3f m;
+    m << cos(p_copy.angle), -1 * sin(p_copy.angle), p_copy.loc.x(),
+        sin(p_copy.angle), cos(p_copy.angle), p_copy.loc.y(),
+        0, 0, 1;
+    auto result {T * m};
+    p_copy.loc.x() = result(0, 2);
+    p_copy.loc.y() = result(1, 2);
+    p_copy.angle = atan2(result(1, 0), result(0, 0));
+    return p_copy;
+}
+
+Pose SLAM::transformPoseCopy(Pose &pose, const Pose &P)
+{
+    // simple case for efficiently doing transforms without rotation
+    if (P.angle == 0) {
+        auto pose_copy{pose};
+        if (P.loc.x() == 0) {
+            pose_copy.loc.y() += P.loc.y();
+        } else if (P.loc.y() == 0) {
+            pose_copy.loc.x() += P.loc.x();
+        } else {
+            pose_copy.loc.x() += P.loc.x();
+            pose_copy.loc.y() += P.loc.y();
+        }
+        return pose_copy;
+    }
+
+    // doing full transformations
+    Eigen::Matrix3f transform;
+    transform << cos(P.angle), -sin(P.angle), P.loc.x(),
+                    sin(P.angle), cos(P.angle), P.loc.y(),
+                    0, 0, 1;
+    return transformPoseCopy(pose, transform);
+}
+
+gtsam::Pose2 SLAM::transformPoseCopy(const gtsam::Pose2 &pose, const Eigen::Matrix3f &T)
+{
+    Eigen::Matrix3f m;
+    m << cos(pose.theta()), -1 * sin(pose.theta()), pose.x(),
+        sin(pose.theta()), cos(pose.theta()), pose.y(),
+        0, 0, 1;
+    auto result {T * m};
+    return gtsam::Pose2(result(0, 2), result(1, 2), atan2(result(1, 0), result(0, 0)));
+}
+
+gtsam::Pose2 SLAM::transformPoseCopy(const gtsam::Pose2 &pose, const gtsam::Pose2 &P)
+{
+    // simple case for efficiently doing transforms without rotation
+    if (P.theta() == 0) {
+        if (P.x() == 0) {
+            return gtsam::Pose2(pose.x(), pose.y() + P.y(), pose.theta());
+        } else if (P.y() == 0) {
+            return gtsam::Pose2(pose.x() + P.x(), pose.y(), pose.theta());
+        } else {
+            return gtsam::Pose2(pose.x() + P.x(), pose.y() + P.y(), pose.theta());
+        }
+    }
+
+    // doing full transformations
+    Eigen::Matrix3f transform;
+    transform << cos(P.theta()), -sin(P.theta()), P.x(),
+                    sin(P.theta()), cos(P.theta()), P.y(),
+                    0, 0, 1;
+    return transformPoseCopy(pose, transform);
+}
+
+// & transform poses
+
+void SLAM::transformPoses(std::vector<Pose> &poses, const Eigen::Matrix3f &T)
+{
+    for (auto &pose : poses) {
+        transformPose(pose, T);
+    }
 }
 
 void SLAM::transformPoses(std::vector<Pose> &poses, const Pose &pose)
@@ -635,17 +656,27 @@ void SLAM::transformPoses(std::vector<Pose> &poses, const Pose &pose)
     transformPoses(poses, transform);
 }
 
-void SLAM::transformPose(Pose &p, const Pose &pose)
+// & transform point
+
+void SLAM::transformPoint(Eigen::Vector2f &point, const Eigen::Matrix3f &T)
+{
+    Eigen::Vector3f m(point.x(), point.y(), 1);
+    auto result {T * m};
+    point.x() = result.x();
+    point.y() = result.y();
+}
+
+void SLAM::transformPoint(Eigen::Vector2f &point, const Pose &pose)
 {
     // simple case for efficiently doing transforms without rotation
     if (pose.angle == 0) {
         if (pose.loc.x() == 0) {
-            p.loc.y() += pose.loc.y();
+            point.y() += pose.loc.y();
         } else if (pose.loc.y() == 0) {
-            p.loc.x() += pose.loc.x();
+            point.x() += pose.loc.x();
         } else {
-            p.loc.x() += pose.loc.x();
-            p.loc.y() += pose.loc.y();
+            point.x() += pose.loc.x();
+            point.y() += pose.loc.y();
         }
         return;
     }
@@ -655,22 +686,16 @@ void SLAM::transformPose(Pose &p, const Pose &pose)
     transform << cos(pose.angle), -sin(pose.angle), pose.loc.x(),
                     sin(pose.angle), cos(pose.angle), pose.loc.y(),
                     0, 0, 1;
-    transformPose(p, transform);
+    transformPoint(point, transform);
 }
+
+// & transform points 
 
 void SLAM::transformPoints(std::vector<Eigen::Vector2f> &points, const Eigen::Matrix3f &T)
 {
     for (auto &point : points) {
         transformPoint(point, T);
     }
-}
-
-void SLAM::transformPoint(Eigen::Vector2f &point, const Eigen::Matrix3f &T)
-{
-    Eigen::Vector3f m(point.x(), point.y(), 1);
-    auto result {T * m};
-    point.x() = result.x();
-    point.y() = result.y();
 }
 
 void SLAM::transformPoints(std::vector<Eigen::Vector2f> &points, const Pose &pose)
@@ -700,29 +725,6 @@ void SLAM::transformPoints(std::vector<Eigen::Vector2f> &points, const Pose &pos
                     sin(pose.angle), cos(pose.angle), pose.loc.y(),
                     0, 0, 1;
     transformPoints(points, transform);
-}
-
-void SLAM::transformPoint(Eigen::Vector2f &point, const Pose &pose)
-{
-    // simple case for efficiently doing transforms without rotation
-    if (pose.angle == 0) {
-        if (pose.loc.x() == 0) {
-            point.y() += pose.loc.y();
-        } else if (pose.loc.y() == 0) {
-            point.x() += pose.loc.x();
-        } else {
-            point.x() += pose.loc.x();
-            point.y() += pose.loc.y();
-        }
-        return;
-    }
-
-    // doing full transformations
-    Eigen::Matrix3f transform;
-    transform << cos(pose.angle), -sin(pose.angle), pose.loc.x(),
-                    sin(pose.angle), cos(pose.angle), pose.loc.y(),
-                    0, 0, 1;
-    transformPoint(point, transform);
 }
 
 }  // namespace slam
