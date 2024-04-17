@@ -34,15 +34,13 @@ RUN echo "source /opt/ros/noetic/setup.bash\n" \
 "export ROS_PACKAGE_PATH=\$ROS_PACKAGE_PATH:~/amrl_maps\n" \
 "export ROS_PACKAGE_PATH=\$ROS_PACKAGE_PATH:~/amrl_msgs" >> ~/.bashrc
 
+# clone and build GTSAM
 RUN git clone https://github.com/borglab/gtsam.git 
-
 WORKDIR /home/dev/gtsam
-RUN mkdir build && mkdir local && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=/home/dev/gtsam/local && make install 
-
+RUN mkdir build && mkdir local && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=/home/dev/gtsam/local -DGTSAM_USE_SYSTEM_EIGEN=ON && make install 
 ENV CMAKE_PREFIX_PATH=/home/dev/gtsam/local:${CMAKE_PREFIX_PATH}
 ENV GTSAM_DIR=/home/dev/gtsam/local
 ENV LD_LIBRARY_PATH=/home/dev/gtsam/local/lib:${LD_LIBRARY_PATH}
-
 WORKDIR /home/dev
 
 # build deps

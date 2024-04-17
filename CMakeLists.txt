@@ -40,10 +40,14 @@ ADD_SUBDIRECTORY(src/shared)
 INCLUDE_DIRECTORIES(src/shared)
 INCLUDE_DIRECTORIES(src)
 
+find_package(GTSAMCMakeTools)
+find_package(GTSAM REQUIRED)
+include_directories(${GTSAM_INCLUDE_DIR})
+
 ROSBUILD_ADD_EXECUTABLE(slam
                         src/slam/slam_main.cc
                         src/slam/slam.cc)
-TARGET_LINK_LIBRARIES(slam shared_library ${libs})
+TARGET_LINK_LIBRARIES(slam shared_library gtsam ${libs})
 
 
 ROSBUILD_ADD_EXECUTABLE(particle_filter
@@ -80,8 +84,17 @@ ADD_EXECUTABLE(rasterization_test
 TARGET_LINK_LIBRARIES(rasterization_test shared_library ${libs})
 
 # set(CMAKE_PREFIX_PATH "/home/dev/gtsam/local:${CMAKE_PREFIX_PATH}")
-find_package(GTSAMCMakeTools)
-find_package(GTSAM REQUIRED)
-include_directories(${GTSAM_INCLUDE_DIR})
+# find_package(GTSAMCMakeTools)
+# find_package(GTSAM REQUIRED)
+# include_directories(${GTSAM_INCLUDE_DIR})
 add_executable(gtsam_test src/slam/gtsam_test.cpp)
 target_link_libraries(gtsam_test gtsam)
+
+ADD_EXECUTABLE(motion_model_test
+               src/slam/motion_model_test.cpp)
+TARGET_LINK_LIBRARIES(motion_model_test shared_library ${libs})
+
+ADD_EXECUTABLE(slam_processor_test
+               src/slam/slam_processor_test.cpp
+               src/slam/slam_processor)
+TARGET_LINK_LIBRARIES(slam_processor_test shared_library ${libs})

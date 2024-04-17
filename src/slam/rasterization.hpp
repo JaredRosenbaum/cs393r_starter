@@ -21,7 +21,7 @@ public:
         generateLookupTable(points);
     }
 
-    double lookupUnnormalizedProbability(const Eigen::Vector2f &point)
+    double evaluate(const Eigen::Vector2f &point)
     {
         // calculate indices of point in image
         const auto indices {computeIndices(point)};
@@ -47,7 +47,7 @@ public:
         outFile << "255\n"; // Maximum color value (for 8-bit grayscale)
 
         // find highest magnitude pixel
-        int max_value {};
+        float max_value {};
         for (const auto &row : pixels) {
             for (const auto &value : row) {
                 if (value > max_value) {max_value = value;}
@@ -145,10 +145,10 @@ private:
         // - now build an "image" sized for these limits
         std::size_t size_x {static_cast<std::size_t>((_upper_right_corner->x() - _lower_left_corner->x()) / _resolution)};
         std::size_t size_y {static_cast<std::size_t>((_upper_right_corner->y() - _lower_left_corner->y()) / _resolution)};
-
+        
         _table = std::make_unique<std::vector<std::vector<double>>>(size_x, std::vector<double>(size_y, 0.d));
 
-        std::cout << "Created an lookup table of size [" << _table->size() << ", " << _table->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
+        // std::cout << "Created an lookup table of size [" << _table->size() << ", " << _table->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
 
         for (const auto &point : points) {
             seedGaussianKernel(point);
