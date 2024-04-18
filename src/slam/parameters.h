@@ -12,8 +12,14 @@
 #define MOTION_MODEL_THETA_LIMIT            0.3    // ~20deg
 
 #define LOOKUP_TABLE_RESOLUTION             0.03 // m
-#define LOOKUP_TABLE_SIGMA                  0.1 // m
+#define LOOKUP_TABLE_SIGMA                  0.02 // 0.1 // m
 
-#define POSE_GRAPH_CONNECTION_DEPTH         3 // number of previous non-sequential poses to connect to new
+#define POSE_GRAPH_CONNECTION_DEPTH         5 // number of previous non-sequential poses to connect to new
 
 #define PROBABILITY_WEIGHT                   1 // used to calculate probability for candidate pose, might not actually do anything, but might affect the covariances, which might affect the way the pose graph optimization works; need to test once optimization is implemented
+
+#define K2              0.5 //0.5
+#define K3              0.5 //0.1
+#define K4              0.5 //0.1
+#define K5              0.5 //0.5
+#define K6              0.5 //0.5

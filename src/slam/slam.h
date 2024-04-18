@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <vector>
 #include <memory>
+#include <variant>
 
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
@@ -142,13 +143,15 @@ class SLAM {
   int depth_;
   std::vector<std::shared_ptr<SequentialNode>> chain_;
 
+  gtsam::Pose2 starting_pose_;
+  
   void optimizeChain();
 
   void iterateSLAM(
     Pose &odom,
     std::vector<Eigen::Vector2f> &cloud);
   
-  std::pair<gtsam::Pose2, gtsam::Matrix> pairwiseComparison(
+  std::variant<bool, std::pair<gtsam::Pose2, gtsam::Matrix>> pairwiseComparison(
       std::shared_ptr<SequentialNode> &new_node,
       std::shared_ptr<SequentialNode> &existing_node);
 
@@ -158,7 +161,7 @@ class SLAM {
       std::shared_ptr<rasterization::LookupTable> &ref,
       const std::vector<Eigen::Vector2f> &ref_points);
   
-  Eigen::Matrix3d calculateCovariance(std::shared_ptr<std::vector<Candidate>> &candidates);
+  std::variant<bool, Eigen::Matrix3d> calculateCovariance(std::shared_ptr<std::vector<Candidate>> &candidates);
 
   Eigen::Matrix3f getTransformChain(int ind2, int ind1=0);
   Eigen::Matrix3f pose2Transform(const Pose &pose);

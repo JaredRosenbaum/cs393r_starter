@@ -5,6 +5,8 @@
 #include <memory>
 #include <eigen3/Eigen/Dense>
 
+#include "parameters.h"
+
 namespace motion_model {
 
 class MultivariateMotionModel
@@ -18,16 +20,16 @@ public:
         Eigen::Vector2d translation_vector(odom.x(), odom.y());
         const double translation {translation_vector.norm()};
         const double rotation {std::abs(odom.z())};
-        const double k2 {0.5d};
-        const double k3 {0.1d};
-        const double k4 {0.1d};
-        const double k5 {0.5d};
-        const double k6 {0.5d};
+        // const double k2 {0.5d};
+        // const double k3 {0.1d};
+        // const double k4 {0.1d};
+        // const double k5 {0.5d};
+        // const double k6 {0.5d};
 
         Eigen::Matrix3d cov;
-        cov << std::max(pow(k5 * translation + k4 * rotation, 2), 0.1), 0.d, 0.d,
-                0.d, std::max(pow(k6 * translation + k4 * rotation, 2), 0.1), 0.d,
-                0.d, 0.d, std::max(pow(k2 * translation + k3 * rotation, 2), 0.1);
+        cov << std::max(pow(K5 * translation + K4 * rotation, 2), 0.1), 0.d, 0.d,
+                0.d, std::max(pow(K6 * translation + K4 * rotation, 2), 0.1), 0.d,
+                0.d, 0.d, std::max(pow(K2 * translation + K3 * rotation, 2), 0.1);
 
         _covariance = std::make_unique<const Eigen::Matrix3d>(cov);
 
