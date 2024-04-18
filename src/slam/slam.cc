@@ -20,12 +20,10 @@
 //========================================================================
 
 // TODO
-// + make SLAM start from current robot location instead of origin (for testing and visualization, plus should get rid of robot jumping around)
 // + fill in GetMap function
 // + test with different parameters for scan matching and motion model (figure out why scan drifts over time and how to fix it)
-// + fix visualization of selected cloud and pose in coreUpdate function for debugging
 // + finish GTSAM implementation and test
-// + covariances are sometimes NaN, figure out when this happens and how to fix it
+// + inputs to GTSAM sometimes are unstable (probably NaNs) maybe have a check and don't add or set if contains
 // + consider changing sampling limits and resolutions relative to odometry (so if we've moved farther, increase the size of the search space but keep the same number of samples?)
 // + make sample generation start at zero and move out to either side uniformly (so there's always one that's exactly 0, 0, 0 relative to odom)
 
@@ -81,8 +79,15 @@ void SLAM::InitializePose(const Eigen::Vector2f& loc, const float angle) {
 
 void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
   // Return the latest pose estimate of the robot.
-  *loc = current_pose_.loc;
-  *angle = current_pose_.angle;
+//   *loc = current_pose_.loc;
+//   *angle = current_pose_.angle;
+  if (!(chain_.size() > 0)) {
+    *loc = current_pose_.loc;
+    *angle = current_pose_.angle;
+    return;
+  }
+  *loc = Eigen::Vector2f(chain_[chain_.size() - 1]->abs_pose.x(), chain_[chain_.size() - 1]->abs_pose.y());
+  *angle = chain_[chain_.size() - 1]->abs_pose.theta();
 }
 
 void SLAM::ObserveLaser(const vector<float>& ranges,
@@ -385,21 +390,21 @@ void SLAM::optimizeChain()
     // ??? it looks like this output is the relative again??? so should we now recombine them to get the new absolutes?
 
     // !!! iterate over the data and update it
-    // int new_graph_id {0};
-    // for (std::size_t i = 1; i < chain_.size(); i++) {
-    //     new_graph_id++;
-    //     chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose);
-    //     // *************************************
-    //     // !!! maybe also update covariance???
-    //     // *************************************
-    // }
+    int new_graph_id {0};
+    for (std::size_t i = 1; i < chain_.size(); i++) {
+        new_graph_id++;
+        chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose);
+        // *************************************
+        // !!! maybe also update covariance???
+        // *************************************
+    }
 
-    // for (auto &node : chain_) {
-    //     for (auto &n : node->nodes) {
-    //         new_graph_id++;
-    //         n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose);
-    //     }
-    // }
+    for (auto &node : chain_) {
+        for (auto &n : node->nodes) {
+            new_graph_id++;
+            n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose);
+        }
+    }
 }
 
 // -------------------------------------------
