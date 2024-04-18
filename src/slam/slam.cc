@@ -62,7 +62,8 @@ namespace slam {
 SLAM::SLAM() :
     odom_initialized_(false),
     ready_for_slam_update_(false),
-    depth_(POSE_GRAPH_CONNECTION_DEPTH) {}
+    depth_(POSE_GRAPH_CONNECTION_DEPTH),
+    gtsam_timer_(0) {}
 
 void SLAM::CreateVisPublisher(ros::NodeHandle* n) {
     vis_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
@@ -283,7 +284,12 @@ void SLAM::iterateSLAM(
     }
 
     // . perform pose graph optimization using GTSAM
-    optimizeChain();
+    gtsam_timer_++;
+    if (gtsam_timer_ == 10) {
+        std::cout << "Trying to optimize!!!" << std::endl;
+        optimizeChain();
+        gtsam_timer_ = 0;
+    }
 
     // . now add visualization stuff here for debugging
     std::cout << "Trying to visualize..." << std::endl;
@@ -352,7 +358,9 @@ void SLAM::optimizeChain()
             graph_id,
             chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose),
             gtsam::noiseModel::Gaussian::Covariance(chain_[i]->rel_cov)
+
         ));
+        // std::cout << "\tBetween: " << graph_id << ": " << chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose) << std::endl;
 
         initial_estimate.insert(graph_id, chain_[i]->abs_pose);
         std::cout << "\t" << graph_id << ": " << chain_[i]->abs_pose << std::endl;
@@ -368,6 +376,7 @@ void SLAM::optimizeChain()
                 chain_[n.parent]->abs_pose.between(n.abs_pose),
                 gtsam::noiseModel::Gaussian::Covariance(n.rel_cov)
             ));
+            // std::cout << "\tBetween: " << graph_id << ": " << chain_[n.parent]->abs_pose.between(n.abs_pose) << std::endl;
             initial_estimate.insert(graph_id, n.abs_pose);
             std::cout << "\t" << graph_id << ": " << n.abs_pose << std::endl;
         }
@@ -384,19 +393,21 @@ void SLAM::optimizeChain()
     gtsam::GaussNewtonOptimizer optimizer(graph, initial_estimate, parameters);
     gtsam::Values optimized_result = optimizer.optimize();
 
-    std::cout << "Post optimization: " << std::endl;
-    for (int i = 0; i <= graph_id; i++) {
-        auto optimized_pose {optimized_result.at<gtsam::Pose2>(i)};
-        std::cout << "\t" << i << ": " << optimized_pose << std::endl;
-    }
+    // std::cout << "Post optimization: " << std::endl;
+    // for (int i = 0; i <= graph_id; i++) {
+    //     auto optimized_pose {optimized_result.at<gtsam::Pose2>(i)};
+    //     std::cout << "\t" << i << ": " << optimized_pose << std::endl;
+    // }
 
-    // ??? it looks like this output is the relative again??? so should we now recombine them to get the new absolutes?
-
-    // !!! iterate over the data and update it
+    // iterate over the data and update it
     int new_graph_id {0};
     for (std::size_t i = 1; i < chain_.size(); i++) {
         new_graph_id++;
-        chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose);
+        // chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose);
+        chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
+
+        // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose) << std::endl;
+        std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose) << std::endl;
         // *************************************
         // !!! maybe also update covariance???
         // *************************************
@@ -405,7 +416,11 @@ void SLAM::optimizeChain()
     for (auto &node : chain_) {
         for (auto &n : node->nodes) {
             new_graph_id++;
-            n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose);
+            // n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose);
+            n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
+
+            // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose) << std::endl;
+            std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose) << std::endl;
         }
     }
 }

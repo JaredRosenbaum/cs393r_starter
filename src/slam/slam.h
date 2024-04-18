@@ -139,8 +139,10 @@ class SLAM {
   bool ready_for_slam_update_;    // motion model 
   Pose current_pose_;
 
+
   // !!!
   int depth_;
+  int gtsam_timer_;
   std::vector<std::shared_ptr<SequentialNode>> chain_;
 
   gtsam::Pose2 starting_pose_;
