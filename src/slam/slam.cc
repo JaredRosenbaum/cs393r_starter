@@ -77,7 +77,7 @@ void SLAM::InitializePose(const Eigen::Vector2f& loc, const float angle) {
   odom_initialized_ = false;
 }
 
-void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
+void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) {
   // Return the latest pose estimate of the robot.
 //   *loc = current_pose_.loc;
 //   *angle = current_pose_.angle;
@@ -86,8 +86,11 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) const {
     *angle = current_pose_.angle;
     return;
   }
-  *loc = Eigen::Vector2f(chain_[chain_.size() - 1]->abs_pose.x(), chain_[chain_.size() - 1]->abs_pose.y());
-  *angle = chain_[chain_.size() - 1]->abs_pose.theta();
+
+  const auto last_chain_pose {Pose(chain_[chain_.size() - 1]->abs_pose.x(), chain_[chain_.size() - 1]->abs_pose.y(), chain_[chain_.size() - 1]->abs_pose.theta())};
+  Pose current {transformPoseCopy(odom_change_, last_chain_pose)};
+  *loc = current.loc;
+  *angle = current.angle;
 }
 
 void SLAM::ObserveLaser(const vector<float>& ranges,
@@ -154,7 +157,6 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
     Eigen::Vector2f odom_translation = odom_loc - prev_odom_pose_.loc;
     float odom_rotation = AngleDiff(odom_angle, prev_odom_pose_.angle);
 
-
     // Ignore unrealistic jumps in odometry
     if (odom_translation.norm() < 1.0 && abs(odom_rotation) < M_PI_4) {
 
@@ -163,15 +165,16 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
       float rotation = AngleDiff(odom_angle, reference_odom_pose_.angle);
       // std::cout << translation << ", " << rotation << std::endl;
 
+      odom_change_.loc = Eigen::Vector2f(
+        translation * cos(rotation),
+        translation * sin(rotation)
+      );
+      odom_change_.angle = rotation;
+
       // Proceed with preparing a motion model when meeting threshold
       if ((translation > ODOM_TRANSLATION_THRESHOLD ||
         std::abs(rotation) > ODOM_ROTATION_THRESHOLD) && !ready_for_slam_update_) {
         // Calculate the change in odometry in reference to the odom frame (reference odom pose is (0, 0, 0))
-        odom_change_.loc = Eigen::Vector2f(
-          translation * cos(rotation),
-          translation * sin(rotation)
-        );
-        odom_change_.angle = rotation;
         ready_for_slam_update_ = true;
 
         // Update reference pose
@@ -637,7 +640,7 @@ void SLAM::transformPose(Pose &pose, const Pose &P)
     transformPose(pose, transform);
 }
 
-Pose SLAM::transformPoseCopy(Pose &pose, const Eigen::Matrix3f &T)
+Pose SLAM::transformPoseCopy(const Pose &pose, const Eigen::Matrix3f &T)
 {
     auto p_copy {pose};
     Eigen::Matrix3f m;
@@ -651,7 +654,7 @@ Pose SLAM::transformPoseCopy(Pose &pose, const Eigen::Matrix3f &T)
     return p_copy;
 }
 
-Pose SLAM::transformPoseCopy(Pose &pose, const Pose &P)
+Pose SLAM::transformPoseCopy(const Pose &pose, const Pose &P)
 {
     // simple case for efficiently doing transforms without rotation
     if (P.angle == 0) {

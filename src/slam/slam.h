@@ -126,7 +126,7 @@ class SLAM {
   std::vector<Eigen::Vector2f> GetMap();
 
   // Get latest robot pose.
-  void GetPose(Eigen::Vector2f* loc, float* angle) const;
+  void GetPose(Eigen::Vector2f* loc, float* angle);
 
  private:
   ros::Publisher vis_pub_;
@@ -168,8 +168,8 @@ class SLAM {
 
   void transformPose(Pose &pose, const Eigen::Matrix3f &T);
   void transformPose(Pose &pose, const Pose &P);
-  Pose transformPoseCopy(Pose &pose, const Eigen::Matrix3f &T);
-  Pose transformPoseCopy(Pose &pose, const Pose &P);
+  Pose transformPoseCopy(const Pose &pose, const Eigen::Matrix3f &T);
+  Pose transformPoseCopy(const Pose &pose, const Pose &P);
   gtsam::Pose2 transformPoseCopy(const gtsam::Pose2 &pose, const Eigen::Matrix3f &T);
   gtsam::Pose2 transformPoseCopy(const gtsam::Pose2 &pose, const gtsam::Pose2 &P);
   void transformPoses(std::vector<Pose> &poses, const Eigen::Matrix3f &T);
