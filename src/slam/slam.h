@@ -128,6 +128,12 @@ class SLAM {
   // Get latest robot pose.
   void GetPose(Eigen::Vector2f* loc, float* angle);
 
+  // *********88
+  void GTSAM_TEST(void);
+  std::vector<float> readFloatFile(const std::string& filename);
+  std::vector<Eigen::Vector2f> convertScan(std::vector<float> ranges);
+  // *********88
+
  private:
   ros::Publisher vis_pub_;
   amrl_msgs::VisualizationMsg vis_msg_;

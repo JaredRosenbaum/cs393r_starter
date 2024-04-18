@@ -109,9 +109,8 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
     return;
   }
 
-  std::vector<Eigen::Vector2f> point_cloud;
-
   // Convert laser scan to point cloud centered around base_link
+  std::vector<Eigen::Vector2f> point_cloud;
   float angle_inc = (angle_max - angle_min) / ranges.size();
   for (std::size_t i = 0; i < ranges.size(); i++) {
     // Ignore points that are not obstacles
@@ -283,7 +282,7 @@ void SLAM::iterateSLAM(
     }
 
     // . perform pose graph optimization using GTSAM
-    optimizeChain();
+    // optimizeChain();
 
     // . now add visualization stuff here for debugging
     std::cout << "Trying to visualize..." << std::endl;
@@ -816,6 +815,142 @@ void SLAM::transformPoints(std::vector<Eigen::Vector2f> &points, const Pose &pos
                     sin(pose.angle), cos(pose.angle), pose.loc.y(),
                     0, 0, 1;
     transformPoints(points, transform);
+}
+
+
+
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
+
+void SLAM::GTSAM_TEST(void) {
+  visualization::ClearVisualizationMsg(vis_msg_);
+
+  // Poses
+  Pose pose_1(-26, 8, 0);
+  Pose pose_2(-24, 8, 0);
+  Pose pose_3(-22, 8, 0);
+  Pose pose_4(-20, 8, 0);
+  Pose pose_5(-18, 8, 0);
+
+  // Scans
+  std::vector<float> ranges_1 = readFloatFile("/home/dev/cs393r_starter/test_files/scan1.txt");
+  std::vector<float> ranges_2 = readFloatFile("/home/dev/cs393r_starter/test_files/scan2.txt");
+  std::vector<float> ranges_3 = readFloatFile("/home/dev/cs393r_starter/test_files/scan3.txt");
+  std::vector<float> ranges_4 = readFloatFile("/home/dev/cs393r_starter/test_files/scan4.txt");
+  std::vector<float> ranges_5 = readFloatFile("/home/dev/cs393r_starter/test_files/scan5.txt");
+
+  // Get pose differences
+  Pose diff_2;
+  diff_2.loc = pose_2.loc - pose_1.loc;
+  diff_2.angle = AngleDiff(pose_2.angle, pose_1.angle);
+  Pose diff_3;
+  diff_3.loc = pose_3.loc - pose_2.loc;
+  diff_3.angle = AngleDiff(pose_3.angle, pose_2.angle);
+  Pose diff_4;
+  diff_4.loc = pose_4.loc - pose_3.loc;
+  diff_4.angle = AngleDiff(pose_4.angle, pose_3.angle);
+  Pose diff_5;
+  diff_5.loc = pose_5.loc - pose_4.loc;
+  diff_5.angle = AngleDiff(pose_5.angle, pose_4.angle);
+
+  // Convert scans to point clouds
+  std::vector<Eigen::Vector2f> cloud_1 = convertScan(ranges_1);
+  std::vector<Eigen::Vector2f> cloud_2 = convertScan(ranges_2);
+  std::vector<Eigen::Vector2f> cloud_3 = convertScan(ranges_3);
+  std::vector<Eigen::Vector2f> cloud_4 = convertScan(ranges_4);
+  std::vector<Eigen::Vector2f> cloud_5 = convertScan(ranges_5);
+
+  // Visualize point clouds 
+  // for (const auto &point : cloud_1) {
+  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
+  // }
+  // vis_msg_.header.stamp = ros::Time::now();
+  // vis_pub_.publish(vis_msg_);
+  // for (const auto &point : cloud_2) {
+  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
+  // }
+  // ros::Duration(1).sleep();
+  // vis_msg_.header.stamp = ros::Time::now();
+  // vis_pub_.publish(vis_msg_);
+  // for (const auto &point : cloud_3) {
+  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
+  // }
+  // ros::Duration(1).sleep();
+  // vis_msg_.header.stamp = ros::Time::now();
+  // vis_pub_.publish(vis_msg_);
+  // for (const auto &point : cloud_4) {
+  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
+  // }
+  // ros::Duration(1).sleep();
+  // vis_msg_.header.stamp = ros::Time::now();
+  // vis_pub_.publish(vis_msg_);
+  // for (const auto &point : cloud_5) {
+  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
+  // }
+  // ros::Duration(1).sleep();
+  // vis_msg_.header.stamp = ros::Time::now();
+  // vis_pub_.publish(vis_msg_);
+
+  // Test GTSAM
+  iterateSLAM(diff_2, cloud_2);
+  iterateSLAM(diff_3, cloud_3);
+  iterateSLAM(diff_4, cloud_4);
+  iterateSLAM(diff_5, cloud_5);
+}
+
+std::vector<float> SLAM::readFloatFile(const std::string& filename) {
+    std::vector<float> floats;
+    std::ifstream file(filename);
+    
+    if (!file.is_open()) {
+        std::cerr << "Error: Unable to open file " << filename << std::endl;
+        return floats; // Return empty vector if file cannot be opened
+    }
+    
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string token;
+        while (std::getline(iss, token, ',')) {
+            float value = std::stof(token);
+            floats.push_back(value);
+        }
+    }
+    
+    file.close();
+    return floats;
+}
+
+std::vector<Eigen::Vector2f> SLAM::convertScan(std::vector<float> ranges) {
+  // Convert scans to point clouds
+  std::vector<Eigen::Vector2f> point_cloud;
+  float angle_max = 2.356194496154785;
+  float angle_min = -2.356194496154785;
+  float range_max = 10;
+  float angle_inc = (angle_max - angle_min) / ranges.size();
+  for (std::size_t i = 0; i < ranges.size(); i++) {
+    // Ignore points that are not obstacles
+    if (ranges[i] >= range_max) {
+      continue;
+    }
+
+    // Create point coordinates in robot frame
+    const Eigen::Vector2f lidar_loc(0.2, 0);    // LiDAR is 20cm in front of base link
+    float theta = angle_inc * i + angle_min;    // angle_min is -2.35619
+    Eigen::Vector2f point(
+      ranges[i] * cos(theta) + lidar_loc.x(),
+      ranges[i] * sin(theta) + lidar_loc.y()
+    );
+
+    // Push into point cloud vector
+    point_cloud.push_back(point);
+  }
+
+  return point_cloud;
 }
 
 }  // namespace slam
