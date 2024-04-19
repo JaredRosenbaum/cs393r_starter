@@ -77,6 +77,7 @@ struct NonsequentialNode {
     
     int graph_id;
     gtsam::Pose2 abs_pose;
+    gtsam::Pose2 rel_pose;
     gtsam::Matrix rel_cov;
 }; // struct NonsequentialNode
 
@@ -90,6 +91,7 @@ struct SequentialNode {
     
     int graph_id;
     gtsam::Pose2 abs_pose;
+    gtsam::Pose2 rel_pose;
     gtsam::Matrix rel_cov;
 
     SequentialNode(const int &identifier, const Pose &odom, const std::vector<Eigen::Vector2f> &cloud) 

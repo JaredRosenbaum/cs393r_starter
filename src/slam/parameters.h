@@ -14,7 +14,8 @@
 #define LOOKUP_TABLE_RESOLUTION             0.03 // m
 #define LOOKUP_TABLE_SIGMA                  0.1 // 0.1 // m
 
-#define POSE_GRAPH_CONNECTION_DEPTH         5 // number of previous non-sequential poses to connect to new
+#define GTSAM_FREQUENCY                     1 // gtsam will run every this many CSM updates
+#define POSE_GRAPH_CONNECTION_DEPTH         10 // number of previous non-sequential poses to connect to new
 
 #define PROBABILITY_WEIGHT                   1 // used to calculate probability for candidate pose, might not actually do anything, but might affect the covariances, which might affect the way the pose graph optimization works; need to test once optimization is implemented
 
@@ -23,3 +24,4 @@
 #define K4              0.1 //0.1
 #define K5              0.3 //0.5
 #define K6              0.3 //0.5
+

@@ -232,8 +232,12 @@ void SLAM::iterateSLAM(
             // convert relative pose to absolute pose using previous absolute pose
             auto good_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(results)};
 
-            new_state->abs_pose = transformPoseCopy(good_results.first, chain_[index]->abs_pose);
+            // new_state->abs_pose = transformPoseCopy(good_results.first, chain_[index]->abs_pose);
             new_state->rel_cov = good_results.second;
+
+            // &&
+            new_state->rel_pose = good_results.first;
+            new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->abs_pose);
 
             auto end_time {std::chrono::high_resolution_clock::now()};
             auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
@@ -246,15 +250,19 @@ void SLAM::iterateSLAM(
     } else {
         // new_state->abs_pose = gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle);
         // new_state->abs_pose = gtsam::Pose2(0, 0, 0);
-        new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), starting_pose_);
+        // new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), starting_pose_);
         new_state->rel_cov = gtsam::Matrix(Eigen::Matrix3d::Zero());
         
+        // &&
+        new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), starting_pose_);
+        new_state->rel_pose = gtsam::Pose2(0, 0, 0);
+
         // add to the chain
         chain_.push_back(new_state);
         std::cout << "State " << new_state->id << " added to chain!" << std::endl;
     }
 
-    std::cout << "Pose:\n" << new_state->abs_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
+    std::cout << "Abs:\n" << new_state->abs_pose << "\nPose:\n" << new_state->rel_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
 
     // . now create all non-sequential states
     // for each comparison
@@ -275,17 +283,22 @@ void SLAM::iterateSLAM(
             NonsequentialNode node;
             node.parent = chain_[index]->id;
             node.rel_odom = transformPoseCopy(odom, chain_[index]->rel_odom);
-            node.abs_pose = transformPoseCopy(good_results.first, chain_[index]->abs_pose);
+            // node.abs_pose = transformPoseCopy(good_results.first, chain_[index]->abs_pose);
             node.rel_cov = good_results.second;
+
+            // &&
+            node.rel_pose = good_results.first;
+            node.abs_pose = transformPoseCopy(good_results.first, chain_[index]->abs_pose);
+
             new_state->nodes.push_back(node);
 
-            std::cout << "Pose:\n" << node.abs_pose.x() << ", " << node.abs_pose.y() << ", " << node.abs_pose.theta() << "\nCov:\n" << node.rel_cov << std::endl;
+            std::cout << "Abs:\n" << node.abs_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
         }
     }
 
     // . perform pose graph optimization using GTSAM
     gtsam_timer_++;
-    if (gtsam_timer_ == 10) {
+    if (gtsam_timer_ == GTSAM_FREQUENCY) {
         std::cout << "Trying to optimize!!!" << std::endl;
         optimizeChain();
         gtsam_timer_ = 0;
@@ -298,6 +311,7 @@ void SLAM::iterateSLAM(
     for (int i = 0; i < static_cast<int>(chain_.size()); i++) {
         // transform cloud
         auto viz_points {chain_[i]->points};
+        // transformPoints(viz_points, Pose(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y(), chain_[i]->abs_pose.theta()));
         transformPoints(viz_points, Pose(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y(), chain_[i]->abs_pose.theta()));
 
         // visualize cloud
@@ -356,14 +370,15 @@ void SLAM::optimizeChain()
         graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
             graph_id - 1,
             graph_id,
-            chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose),
+            // chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose),
+            chain_[i]->rel_pose,
             gtsam::noiseModel::Gaussian::Covariance(chain_[i]->rel_cov)
 
         ));
         // std::cout << "\tBetween: " << graph_id << ": " << chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose) << std::endl;
 
         initial_estimate.insert(graph_id, chain_[i]->abs_pose);
-        std::cout << "\t" << graph_id << ": " << chain_[i]->abs_pose << std::endl;
+        // std::cout << "\t" << graph_id << ": " << chain_[i]->abs_pose << std::endl;
     }
 
     // now add in the non-sequential poses
@@ -373,12 +388,13 @@ void SLAM::optimizeChain()
             graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
                 n.parent,
                 graph_id,
-                chain_[n.parent]->abs_pose.between(n.abs_pose),
+                // chain_[n.parent]->abs_pose.between(n.abs_pose),
+                n.rel_pose,
                 gtsam::noiseModel::Gaussian::Covariance(n.rel_cov)
             ));
             // std::cout << "\tBetween: " << graph_id << ": " << chain_[n.parent]->abs_pose.between(n.abs_pose) << std::endl;
             initial_estimate.insert(graph_id, n.abs_pose);
-            std::cout << "\t" << graph_id << ": " << n.abs_pose << std::endl;
+            // std::cout << "\t" << graph_id << ": " << n.abs_pose << std::endl;
         }
     }
 
@@ -407,7 +423,7 @@ void SLAM::optimizeChain()
         chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
 
         // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose) << std::endl;
-        std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose) << std::endl;
+        // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose) << std::endl;
         // *************************************
         // !!! maybe also update covariance???
         // *************************************
@@ -420,7 +436,7 @@ void SLAM::optimizeChain()
             n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
 
             // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose) << std::endl;
-            std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose) << std::endl;
+            // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose) << std::endl;
         }
     }
 }
