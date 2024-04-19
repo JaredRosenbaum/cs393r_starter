@@ -80,11 +80,10 @@ void SLAM::InitializePose(const Eigen::Vector2f& loc, const float angle) {
 
 void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) {
   // Return the latest pose estimate of the robot.
-//   *loc = current_pose_.loc;
-//   *angle = current_pose_.angle;
   if (!(chain_.size() > 0)) {
-    *loc = current_pose_.loc;
-    *angle = current_pose_.angle;
+    const auto pose {transformPoseCopy(odom_change_, current_pose_)};
+    *loc = pose.loc;
+    *angle = pose.angle;
     return;
   }
 
@@ -362,23 +361,17 @@ void SLAM::optimizeChain()
     auto priorNoise = gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector3(0.1, 0.1, 0.03));
     graph.addPrior(0, gtsam::Pose2(0, 0, 0), priorNoise);
 
-    // start by adding sequential poses to graph, make sure they don't change with optimization
-    std::cout << "-----------------" << std::endl;
-    std::cout << "Pre optimization: " << std::endl;
+    // start by adding sequential poses to graph
     for (std::size_t i = 1; i < chain_.size(); i++) {
         graph_id++;
         graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
             graph_id - 1,
             graph_id,
-            // chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose),
             chain_[i]->rel_pose,
             gtsam::noiseModel::Gaussian::Covariance(chain_[i]->rel_cov)
 
         ));
-        // std::cout << "\tBetween: " << graph_id << ": " << chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose) << std::endl;
-
         initial_estimate.insert(graph_id, chain_[i]->abs_pose);
-        // std::cout << "\t" << graph_id << ": " << chain_[i]->abs_pose << std::endl;
     }
 
     // now add in the non-sequential poses
@@ -388,13 +381,10 @@ void SLAM::optimizeChain()
             graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
                 n.parent,
                 graph_id,
-                // chain_[n.parent]->abs_pose.between(n.abs_pose),
                 n.rel_pose,
                 gtsam::noiseModel::Gaussian::Covariance(n.rel_cov)
             ));
-            // std::cout << "\tBetween: " << graph_id << ": " << chain_[n.parent]->abs_pose.between(n.abs_pose) << std::endl;
             initial_estimate.insert(graph_id, n.abs_pose);
-            // std::cout << "\t" << graph_id << ": " << n.abs_pose << std::endl;
         }
     }
 
@@ -402,28 +392,21 @@ void SLAM::optimizeChain()
     // graph.print();
 
     // optimize the graph
-    // gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimate);
-    gtsam::GaussNewtonParams parameters;
-    parameters.relativeErrorTol = 1e-5;
-    parameters.maxIterations = 100;
-    gtsam::GaussNewtonOptimizer optimizer(graph, initial_estimate, parameters);
+    gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimate);
     gtsam::Values optimized_result = optimizer.optimize();
 
-    // std::cout << "Post optimization: " << std::endl;
-    // for (int i = 0; i <= graph_id; i++) {
-    //     auto optimized_pose {optimized_result.at<gtsam::Pose2>(i)};
-    //     std::cout << "\t" << i << ": " << optimized_pose << std::endl;
-    // }
+    // TODO compute marginals and get new covariances (before doing this, it would be nice to have a better way of storing keys, use symbols and somehow track what they go to)
+    // gtsam::Marginals marginals(graph, optimized_result);
+    
+    // gtsam::KeyVector keys;
+    // for (int i = 0; i < chain_.size(); )
 
     // iterate over the data and update it
     int new_graph_id {0};
     for (std::size_t i = 1; i < chain_.size(); i++) {
         new_graph_id++;
-        // chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose);
         chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
 
-        // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose) << std::endl;
-        // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose) << std::endl;
         // *************************************
         // !!! maybe also update covariance???
         // *************************************
@@ -432,11 +415,7 @@ void SLAM::optimizeChain()
     for (auto &node : chain_) {
         for (auto &n : node->nodes) {
             new_graph_id++;
-            // n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose);
             n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
-
-            // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose) << std::endl;
-            // std::cout << "\tSetting " << new_graph_id << ": " << transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose) << std::endl;
         }
     }
 }
@@ -612,7 +591,7 @@ std::variant<bool, Eigen::Matrix3d> SLAM::calculateCovariance(std::shared_ptr<st
         s += candidate.p_motion*candidate.p_scan;
     }
 
-    if (s == 0) {
+    if (s < 1e-9) {
         return false;
     }
 
