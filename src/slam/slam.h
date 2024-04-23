@@ -35,6 +35,7 @@
 #include "rasterization.hpp"
 #include "motion_model.hpp"
 #include "parameters.h"
+#include "icp.h"
 
 #include <gtsam/base/Vector.h>
 #include <gtsam/base/Matrix.h>
@@ -93,6 +94,8 @@ struct SequentialNode {
     gtsam::Pose2 abs_pose;
     gtsam::Pose2 rel_pose;
     gtsam::Matrix rel_cov;
+
+    gtsam::Pose2 est_pose;
 
     SequentialNode(const int &identifier, const Pose &odom, const std::vector<Eigen::Vector2f> &cloud) 
     : id(identifier), rel_odom(odom), points(cloud)
