@@ -240,7 +240,7 @@ void SLAM::iterateSLAM(
             // &&
             new_state->rel_pose = good_results.first;
             new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->abs_pose);
-            // new_state->est_pose = new_state->abs_pose;
+            new_state->est_pose = new_state->abs_pose;
 
             auto end_time {std::chrono::high_resolution_clock::now()};
             auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
@@ -259,7 +259,7 @@ void SLAM::iterateSLAM(
         // &&
         new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), starting_pose_);
         new_state->rel_pose = gtsam::Pose2(0, 0, 0);
-        // new_state->est_pose = new_state->abs_pose;
+        new_state->est_pose = new_state->abs_pose;
 
         // add to the chain
         chain_.push_back(new_state);
@@ -319,8 +319,8 @@ void SLAM::iterateSLAM(
     for (int i = 0; i < static_cast<int>(chain_.size()); i++) {
         // transform cloud
         auto viz_points {chain_[i]->points};
-        transformPoints(viz_points, Pose(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y(), chain_[i]->abs_pose.theta()));
-        // transformPoints(viz_points, Pose(chain_[i]->est_pose.x(), chain_[i]->est_pose.y(), chain_[i]->est_pose.theta()));
+        // transformPoints(viz_points, Pose(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y(), chain_[i]->abs_pose.theta()));
+        transformPoints(viz_points, Pose(chain_[i]->est_pose.x(), chain_[i]->est_pose.y(), chain_[i]->est_pose.theta()));
 
         // visualize cloud
         for (const auto &point : viz_points) {
@@ -328,13 +328,13 @@ void SLAM::iterateSLAM(
         }
 
         // visualize pose
-        visualization::DrawParticle(Eigen::Vector2f(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y()), chain_[i]->abs_pose.theta(), vis_msg_);
-        // visualization::DrawParticle(Eigen::Vector2f(chain_[i]->est_pose.x(), chain_[i]->est_pose.y()), chain_[i]->est_pose.theta(), vis_msg_);
+        // visualization::DrawParticle(Eigen::Vector2f(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y()), chain_[i]->abs_pose.theta(), vis_msg_);
+        visualization::DrawParticle(Eigen::Vector2f(chain_[i]->est_pose.x(), chain_[i]->est_pose.y()), chain_[i]->est_pose.theta(), vis_msg_);
 
         // and visualize all non-sequential ones to make sure they're in the right spot
-        for (const auto &node : chain_[i]->nodes) {
-            visualization::DrawParticle(Eigen::Vector2f(node.abs_pose.x(), node.abs_pose.y()), node.abs_pose.theta(), vis_msg_);
-        }
+        // for (const auto &node : chain_[i]->nodes) {
+        //     visualization::DrawParticle(Eigen::Vector2f(node.abs_pose.x(), node.abs_pose.y()), node.abs_pose.theta(), vis_msg_);
+        // }
         
         // std::string input;
         // std::getline(std::cin, input);
@@ -425,43 +425,33 @@ void SLAM::optimizeChain()
     gtsam::NonlinearFactorGraph graph;
 
     // iterate over chain and add all points and initial estimates
-    // ? need to associate poses with unique indexes for recovery
-    int graph_id {0};
-    gtsam::KeyVector keys;
-    keys.push_back(gtsam::Key(graph_id));
-
     gtsam::Values initial_estimate;
-    initial_estimate.insert(graph_id, chain_[0]->abs_pose);
+    initial_estimate.insert(0, chain_[0]->abs_pose);
 
     auto priorNoise = gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector3(0.1, 0.1, 0.03));
     graph.addPrior(0, gtsam::Pose2(0, 0, 0), priorNoise);
 
     // start by adding sequential poses to graph
     for (std::size_t i = 1; i < chain_.size(); i++) {
-        graph_id++;
-        keys.push_back(gtsam::Key(graph_id));
         graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
-            keys[keys.size() - 2],
-            keys[keys.size() - 1],
+            i - 1,
+            i,
             chain_[i]->rel_pose,
             gtsam::noiseModel::Gaussian::Covariance(chain_[i]->rel_cov)
 
         ));
-        initial_estimate.insert(keys[keys.size() - 1], chain_[i]->abs_pose);
+        initial_estimate.insert(i, chain_[i]->abs_pose);
     }
 
     // now add in the non-sequential poses
     for (const auto &node : chain_) {
         for (const auto &n : node->nodes) {
-            graph_id++;
-            keys.push_back(gtsam::Key(graph_id));
             graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
                 n.parent,
-                keys[keys.size() - 1],
+                node->id,
                 n.rel_pose,
                 gtsam::noiseModel::Gaussian::Covariance(n.rel_cov)
             ));
-            initial_estimate.insert(keys[keys.size() - 1], n.abs_pose);
         }
     }
 
@@ -494,23 +484,14 @@ void SLAM::optimizeChain()
         int new_graph_id {0};
         for (std::size_t i = 1; i < chain_.size(); i++) {
             new_graph_id++;
-            chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
-            // chain_[i]->est_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->est_pose);
+            // chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
+            chain_[i]->est_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->est_pose);
 
             // TODO updating the relative covariance and pose
             // chain_[i]->rel_cov = marginals.marginalCovariance(new_graph_id);
             // chain_[i]->rel_pose = chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose);
         }
 
-        for (auto &node : chain_) {
-            for (auto &n : node->nodes) {
-                new_graph_id++;
-                n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
-
-                // n.rel_cov = marginals.marginalCovariance(new_graph_id);
-                // n.rel_pose = chain_[n.parent]->abs_pose.between(node->abs_pose);
-            }
-        }
     } catch (const gtsam::IndeterminantLinearSystemException& e) {
         std::cerr << "Caught IndeterminantLinearSystemException: " << e.what() << std::endl;
         return;

@@ -35,7 +35,6 @@
 #include "rasterization.hpp"
 #include "motion_model.hpp"
 #include "parameters.h"
-#include "icp.h"
 
 #include <gtsam/base/Vector.h>
 #include <gtsam/base/Matrix.h>

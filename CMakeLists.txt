@@ -46,8 +46,7 @@ include_directories(${GTSAM_INCLUDE_DIR})
 
 ROSBUILD_ADD_EXECUTABLE(slam
                         src/slam/slam_main.cc
-                        src/slam/slam.cc
-                        src/slam/icp.cpp)
+                        src/slam/slam.cc)
 TARGET_LINK_LIBRARIES(slam shared_library gtsam ${libs})
 
 
@@ -94,12 +93,3 @@ target_link_libraries(gtsam_test gtsam)
 ADD_EXECUTABLE(motion_model_test
                src/slam/motion_model_test.cpp)
 TARGET_LINK_LIBRARIES(motion_model_test shared_library ${libs})
-
-ADD_EXECUTABLE(slam_processor_test
-               src/slam/slam_processor_test.cpp
-               src/slam/slam_processor)
-TARGET_LINK_LIBRARIES(slam_processor_test shared_library ${libs})
-
-ADD_EXECUTABLE(icp_test
-               src/slam/icp_test.cpp
-               src/slam/icp.cpp)
