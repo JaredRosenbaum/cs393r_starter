@@ -226,10 +226,10 @@ void SLAM::iterateSLAM(
 
         // TODO how to handle bad comparison here?
         if (std::holds_alternative<bool>(results)) {
-            std::cout << "Bad results for " << new_state->id << ". Unable to add to chain." << std::endl;
-            // new_state->rel_pose = gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle);
-            // transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->abs_pose);
-            // new_state->rel_cov = gtsam::Matrix(Eigen::Matrix3d::Zero());
+            // std::cout << "Bad results for " << new_state->id << ". Unable to add to chain." << std::endl;
+            new_state->rel_pose = gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle);
+            new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->abs_pose);
+            new_state->rel_cov = gtsam::Matrix(Eigen::Matrix3d::Zero());
         } else {
             // convert relative pose to absolute pose using previous absolute pose
             auto good_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(results)};
@@ -248,7 +248,7 @@ void SLAM::iterateSLAM(
             
             // add to the chain
             chain_.push_back(new_state);
-            std::cout << "State " << new_state->id << " added to chain!" << std::endl;
+            // std::cout << "State " << new_state->id << " added to chain!" << std::endl;
         }
     } else {
         // new_state->abs_pose = gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle);
@@ -263,7 +263,7 @@ void SLAM::iterateSLAM(
 
         // add to the chain
         chain_.push_back(new_state);
-        std::cout << "State " << new_state->id << " added to chain!" << std::endl;
+        // std::cout << "State " << new_state->id << " added to chain!" << std::endl;
     }
 
     std::cout << "Abs:\n" << new_state->abs_pose << "\nPose:\n" << new_state->rel_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
@@ -273,13 +273,13 @@ void SLAM::iterateSLAM(
     for (int i = 1; i <= depth_; i++) {
         int index {(static_cast<int>(chain_.size()) - 1) - i - 1};
         if (index < 0) {continue;}
-        std::cout << "\nAdding nonsequential relation with " << index << std::endl;
+        // std::cout << "\nAdding nonsequential relation with " << index << std::endl;
 
         // get pose and covariance
         auto results {pairwiseComparison(new_state, chain_[index])};
 
         if (std::holds_alternative<bool>(results)) {
-            std::cout << "Bad results for " << new_state->id << ". Unable to add to chain." << std::endl;
+            // std::cout << "Bad results for " << new_state->id << ". Unable to add to chain." << std::endl;
         } else {
             auto good_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(results)};
 
@@ -296,9 +296,13 @@ void SLAM::iterateSLAM(
 
             new_state->nodes.push_back(node);
 
-            std::cout << "Abs:\n" << node.abs_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
+            // std::cout << "Abs:\n" << node.abs_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
         }
     }
+
+    // TODO now check for loop closures and add these results to the nonsequential nodes of the current state
+    detectLoops(new_state);
+
 
     // . perform pose graph optimization using GTSAM
     gtsam_timer_++;
@@ -343,6 +347,71 @@ void SLAM::iterateSLAM(
     auto end_time {std::chrono::high_resolution_clock::now()};
     auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
     std::cout << ">> Finished SLAM update in " << time_duration.count() << "us" << std::endl;
+}
+
+// -------------------------------------------
+// * Loop Closure
+// -------------------------------------------
+
+double SLAM::computeDisplacement(const SequentialNode &state1, const SequentialNode &state2)
+{
+    return sqrt(pow(state1.abs_pose.x() - state2.abs_pose.x(), 2) + pow(state1.abs_pose.y() - state2.abs_pose.y(), 2));
+}
+
+void SLAM::detectLoops(std::shared_ptr<SequentialNode> &state)
+{
+
+    const double loop_closure_radius {3.0};
+    const int ignore_depth {5};
+    
+    // search around abs location for other data close to
+    // TODO should cut this off to not look at the super recent ones
+    // for (const auto &past_state : chain_) {
+    if (!(chain_.size() > 1 + ignore_depth)) {return;}
+    for (std::size_t i = 0; i < chain_.size() - 1 - ignore_depth; i++) {
+        // check if the displacement is sufficiently close
+        // std::cout << "\tDistance between " << state->id << " and " << chain_[i]->id << ": " << computeDisplacement(*state, *chain_[i]) << std::endl;
+        if (!(computeDisplacement(*state, *chain_[i]) < loop_closure_radius)) {
+            continue;
+        }
+
+        // generate candidates
+        auto rel_odom {Pose(
+            state->abs_pose.x() - chain_[i]->abs_pose.x(), 
+            state->abs_pose.y() - chain_[i]->abs_pose.y(),
+            state->abs_pose.theta() - chain_[i]->abs_pose.theta()
+        )};
+        auto candidates {generateCandidates(rel_odom, state->points, chain_[i]->lookup_table, chain_[i]->points)};
+
+        // calculate covariance
+        auto covariance {calculateCovariance(candidates)};
+        if (std::holds_alternative<bool>(covariance)) {
+            continue;
+        }
+
+        auto cov_matrix {std::get<Eigen::Matrix3d>(covariance)};
+        // and get the best pose
+        Pose best_pose {(*candidates)[0].relative_pose};
+        double best_prob {(*candidates)[0].p};
+        for (std::size_t i = 1; i < candidates->size(); i++) {
+            if ((*candidates)[i].p > best_prob) {
+                best_prob = (*candidates)[i].p;
+                best_pose = (*candidates)[i].relative_pose;
+            }
+        }
+
+        // generate a new non-sequential node to add to the state
+        NonsequentialNode loop_closure_node;
+        loop_closure_node.parent = chain_[i]->id;
+        loop_closure_node.rel_odom = transformPoseCopy(rel_odom, chain_[i]->rel_odom);
+        loop_closure_node.rel_cov = gtsam::Matrix(cov_matrix);
+        loop_closure_node.rel_pose = gtsam::Pose2(best_pose.loc.x(), best_pose.loc.y(), best_pose.angle);
+        loop_closure_node.abs_pose = transformPoseCopy(gtsam::Pose2(best_pose.loc.x(), best_pose.loc.y(), best_pose.angle), chain_[i]->abs_pose);
+
+        state->nodes.push_back(loop_closure_node);
+
+        std::cout << "\tAdded a loop closure node between " << state->id << " and " << chain_[i]->id << "!" << std::endl; 
+    }
 }
 
 // -------------------------------------------
@@ -400,46 +469,51 @@ void SLAM::optimizeChain()
     // graph.print();
 
     // optimize the graph
-    // gtsam::GaussNewtonParams parameters;
-    // parameters.relativeErrorTol = 1e-9;
-    // parameters.maxIterations = 1000;
-    // gtsam::GaussNewtonOptimizer optimizer(graph, initial_estimate, parameters);
-    gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimate);
-    gtsam::Values optimized_result = optimizer.optimize();
+    try {
+        // gtsam::GaussNewtonParams parameters;
+        // parameters.relativeErrorTol = 1e-9;
+        // parameters.maxIterations = 1000;
+        // gtsam::GaussNewtonOptimizer optimizer(graph, initial_estimate, parameters);
+        gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimate);
+        gtsam::Values optimized_result = optimizer.optimize();
 
-    // print out data from optimization
-    double total_error {};
-    for (const auto &factor : graph) {
-        const double factor_error {factor->error(optimized_result)};
-        total_error += pow(factor_error, 2);
-    }
-    total_error = sqrt(total_error);
-
-    std::cout << "Optimized in " << optimizer.iterations() << " iterations with error " << total_error << "." << std::endl;
-
-    // TODO compute marginals and get new covariances (before doing this, it would be nice to have a better way of storing keys, use symbols and somehow track what they go to)
-    gtsam::Marginals marginals(graph, optimized_result);
-
-    // iterate over the data and update it
-    int new_graph_id {0};
-    for (std::size_t i = 1; i < chain_.size(); i++) {
-        new_graph_id++;
-        chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
-        // chain_[i]->est_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->est_pose);
-
-        // TODO updating the relative covariance and pose
-        // chain_[i]->rel_cov = marginals.marginalCovariance(new_graph_id);
-        // chain_[i]->rel_pose = chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose);
-    }
-
-    for (auto &node : chain_) {
-        for (auto &n : node->nodes) {
-            new_graph_id++;
-            n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
-
-            // n.rel_cov = marginals.marginalCovariance(new_graph_id);
-            // n.rel_pose = chain_[n.parent]->abs_pose.between(node->abs_pose);
+        // print out data from optimization
+        double total_error {};
+        for (const auto &factor : graph) {
+            const double factor_error {factor->error(optimized_result)};
+            total_error += pow(factor_error, 2);
         }
+        total_error = sqrt(total_error);
+
+        std::cout << "Optimized in " << optimizer.iterations() << " iterations with error " << total_error << "." << std::endl;
+
+        // TODO compute marginals and get new covariances (before doing this, it would be nice to have a better way of storing keys, use symbols and somehow track what they go to)
+        gtsam::Marginals marginals(graph, optimized_result);
+
+        // iterate over the data and update it
+        int new_graph_id {0};
+        for (std::size_t i = 1; i < chain_.size(); i++) {
+            new_graph_id++;
+            chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
+            // chain_[i]->est_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->est_pose);
+
+            // TODO updating the relative covariance and pose
+            // chain_[i]->rel_cov = marginals.marginalCovariance(new_graph_id);
+            // chain_[i]->rel_pose = chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose);
+        }
+
+        for (auto &node : chain_) {
+            for (auto &n : node->nodes) {
+                new_graph_id++;
+                n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
+
+                // n.rel_cov = marginals.marginalCovariance(new_graph_id);
+                // n.rel_pose = chain_[n.parent]->abs_pose.between(node->abs_pose);
+            }
+        }
+    } catch (const gtsam::IndeterminantLinearSystemException& e) {
+        std::cerr << "Caught IndeterminantLinearSystemException: " << e.what() << std::endl;
+        return;
     }
 }
 
@@ -470,7 +544,7 @@ std::variant<bool, std::pair<gtsam::Pose2, gtsam::Matrix>> SLAM::pairwiseCompari
     // calculate covariance
     auto covariance {calculateCovariance(candidates)};
     if (std::holds_alternative<bool>(covariance)) {
-        std::cout << "Bad covariance detected for " << new_node->id << " and " << existing_node->id << std::endl;
+        // std::cout << "Bad covariance detected for " << new_node->id << " and " << existing_node->id << std::endl;
         return false;
     }
     auto cov_matrix {std::get<Eigen::Matrix3d>(covariance)};
@@ -507,32 +581,25 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
     // create motion model
     auto motion_model {motion_model::MultivariateMotionModel(Eigen::Vector3d(odom.loc.x(), odom.loc.y(), odom.angle))};
 
-    // iterate over candidates
-    const int x_iterations = std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION);
-    const int y_iterations = std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION);
-    const int theta_iterations = std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION);
+    // generate candidates
+    double x_inc        {(2 * std::min(std::max(0.15, odom.loc.x() * X_REL_MULTIPLIER), 3.0)) / X_SAMPLES};
+    double y_inc        {(2 * std::min(std::max(0.15, odom.loc.y() * Y_REL_MULTIPLIER), 3.0)) / Y_SAMPLES};
+    double theta_inc    {(2 * std::min(std::max(0.3, odom.angle * THETA_REL_MULTIPLIER), 1.5)) / THETA_SAMPLES};
 
     // reserving space in candidates
-    candidates->reserve(x_iterations * y_iterations * theta_iterations);
+    candidates->reserve(X_SAMPLES * Y_SAMPLES * THETA_SAMPLES);
 
     // Triple loop to populate motion model poses with variance in each dimension. This creates a cube of next state possibilities
-    for (int theta_i = -theta_iterations; theta_i <= theta_iterations; theta_i++) {
-
+    for (double theta_i = -1 * odom.angle * THETA_REL_MULTIPLIER; theta_i < odom.angle * THETA_REL_MULTIPLIER; theta_i += theta_inc) {
         Candidate candidate;
-        // ! rotate the point cloud (expensive!)
-        // !!! realize we will need to do the combined transform for both the odom and this block
-        // auto cloud {points}; 
-        // transformPoints(cloud, Pose(0, 0, theta_i + odom.angle));
-
-        for (int  y_i = -y_iterations; y_i <= y_iterations; y_i++) {
-            for (int x_i = -x_iterations; x_i <= x_iterations; x_i++) {
-                
-                // . generate a candidate pose WRT to the body
+        for (double x_i = -1 * odom.loc.x() * X_REL_MULTIPLIER; x_i < odom.loc.x() * X_REL_MULTIPLIER; x_i += x_inc) {
+            for (double y_i = -1 * odom.loc.y() * Y_REL_MULTIPLIER; y_i < odom.loc.y() * Y_REL_MULTIPLIER; y_i += y_inc) {
                 auto candidate_pose {Pose(
-                        static_cast<float>(x_i * MOTION_MODEL_X_RESOLUTION), 
-                        static_cast<float>(y_i * MOTION_MODEL_Y_RESOLUTION), 
-                        static_cast<float>(theta_i * MOTION_MODEL_THETA_RESOLUTION))
-                };
+                    x_i,
+                    y_i,
+                    theta_i
+                )};
+
                 // std::cout << "Odom: " << odom.loc.x() << ", " << odom.loc.y() << ", " << odom.angle << std::endl;
                 // std::cout << "Candidate: " << candidate_pose.loc.x() << ", " << candidate_pose.loc.y() << ", " << candidate_pose.angle << std::endl;
 

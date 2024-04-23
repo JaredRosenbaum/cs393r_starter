@@ -25,3 +25,10 @@
 #define K5              0.3 //0.5
 #define K6              0.3 //0.5
 
+#define X_SAMPLES                   20
+#define Y_SAMPLES                   20
+#define THETA_SAMPLES               20
+#define X_REL_MULTIPLIER            0.3
+#define Y_REL_MULTIPLIER            0.3
+#define THETA_REL_MULTIPLIER        0.3
+

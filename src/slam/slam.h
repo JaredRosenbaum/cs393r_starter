@@ -170,6 +170,9 @@ class SLAM {
   
   std::variant<bool, Eigen::Matrix3d> calculateCovariance(std::shared_ptr<std::vector<Candidate>> &candidates);
 
+  void detectLoops(std::shared_ptr<SequentialNode> &state);
+  double computeDisplacement(const SequentialNode &state1, const SequentialNode &state2);
+
   Eigen::Matrix3f getTransformChain(int ind2, int ind1=0);
   Eigen::Matrix3f pose2Transform(const Pose &pose);
 
