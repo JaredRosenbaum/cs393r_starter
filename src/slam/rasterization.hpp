@@ -23,6 +23,10 @@ public:
 
     double evaluate(const Eigen::Vector2f &point)
     {
+        if (_table == nullptr) {
+            // std::cout << "Table has not been created." << std::endl;
+            return 0.d;
+        }
         // calculate indices of point in image
         const auto indices {computeIndices(point)};
         if (indices[0] == -1 || indices[1] == -1) {return 0.d;}
@@ -38,6 +42,10 @@ public:
 
     void exportAsPPM(const std::string &path)
     {
+        if (_table == nullptr) {
+            std::cout << "Table has not been created." << std::endl;
+            return;
+        }
         const auto pixels = *_table;
         std::ofstream outFile(path);
 
@@ -70,6 +78,10 @@ public:
 
     void exportAsPPMRandom(const std::string &path)
     {
+        if (_table == nullptr) {
+            std::cout << "Table has not been created." << std::endl;
+            return;
+        }
         const auto pixels = *_table;
         std::ofstream outFile(path);
 
@@ -127,6 +139,11 @@ private:
 
     void generateLookupTable(const std::vector<Eigen::Vector2f> &points)
     {
+        if (points.empty()) {
+            std::cout << "Table cannot be created, no points provided." << std::endl;
+            return;
+        }
+
         // - iterate over points, find min and max x, y
         float min_x, max_x, min_y, max_y;
         min_x = min_y = std::numeric_limits<float>::max();
@@ -138,6 +155,7 @@ private:
             if (point.x() > max_x) {max_x = point.x();}
             if (point.y() > max_y) {max_y = point.y();}
         }
+
         float buffer {1.f}; // m // setting to be 3*_sigma at minimum to avoid issues with indexing when seeding Gaussians
         _lower_left_corner = std::make_unique<const Eigen::Vector2f>(min_x - buffer, min_y - buffer);
         _upper_right_corner = std::make_unique<const Eigen::Vector2f>(max_x + buffer, max_y + buffer);

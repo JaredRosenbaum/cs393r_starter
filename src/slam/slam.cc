@@ -66,8 +66,8 @@ void SLAM::CreateVisPublisher(ros::NodeHandle* n) {
 void SLAM::InitializePose(const Eigen::Vector2f& loc, const float angle) {
   current_pose_.loc = loc;
   current_pose_.angle = angle;
-  starting_pose_ = std::make_shared<gtsam::Pose2>(loc.x(), loc.y(), angle);
-  visualization::ClearVisualizationMsg(vis_msg_);
+  starting_pose_ = std::make_shared<std::make_shared<gtsam::Pose2>>(loc.x(), loc.y(), angle);
+  visualization::ClearVisualizationMsg(vis_msg_);  visualization::ClearVisualizationMsg(vis_msg_);
   odom_initialized_ = false;
 }
 
@@ -231,12 +231,12 @@ void SLAM::iterateSLAM(
         auto csm_results {pairwiseComparison(new_state, chain_[index])};
 
         // TODO how to handle bad comparison here?
-        if (std::holds_alternative<bool>(csm_results)) {
-            std::cerr << "Invalid CSM results for " << new_state->id << ". Unable to add to chain." << std::endl;
+        // if (std::holds_alternative<bool>(csm_results)) {
+        //     std::cerr << "Invalid CSM results for " << new_state->id << ". Unable to add to chain." << std::endl;
 
-        } else {
+        // } else {
             // convert relative pose to absolute pose using previous absolute pose
-            auto valid_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(csm_results)};
+            auto valid_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(csm_results)}; //. shouldnt be necessary
 
             new_state->rel_pose = valid_results.first;
             new_state->rel_cov = valid_results.second;
@@ -249,7 +249,7 @@ void SLAM::iterateSLAM(
             // add to the chain
             chain_.push_back(new_state);
             std::cout << "State " << new_state->id << " added to chain!" << std::endl;
-        }
+        // }
     } else { // if no previous data in the chain to compare to
         new_state->rel_pose = gtsam::Pose2(0, 0, 0);
         new_state->rel_cov = gtsam::Matrix(Eigen::Matrix3d::Zero());
@@ -272,10 +272,10 @@ void SLAM::iterateSLAM(
         // get pose and covariance
         auto csm_results {pairwiseComparison(new_state, chain_[index])};
 
-        if (std::holds_alternative<bool>(csm_results)) {
-            std::cerr << "Invalid CSM results for " << new_state->id << ". Unable to add to chain." << std::endl;
-        } else {
-            auto valid_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(csm_results)};
+        // if (std::holds_alternative<bool>(csm_results)) {
+        //     std::cerr << "Invalid CSM results for " << new_state->id << ". Unable to add to chain." << std::endl;
+        // } else {
+            auto valid_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(csm_results)}; //.shouldnt be necessary
 
             // store them appropriately
             NonsequentialNode node;
@@ -287,7 +287,7 @@ void SLAM::iterateSLAM(
             new_state->nodes.push_back(node);
 
             // std::cout << "Abs:\n" << node.est_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
-        }
+        // }
     }
 
     // . perform pose graph optimization using GTSAM
@@ -427,22 +427,30 @@ std::variant<bool, std::pair<gtsam::Pose2, gtsam::Matrix>> SLAM::pairwiseCompari
     auto candidates {generateCandidates(rel_odom, new_node->points, existing_node->lookup_table)};
 
     // calculate covariance
+    Eigen::Matrix3d cov_matrix;
+    Pose best_pose;
     auto covariance {calculateCovariance(candidates)};
     if (std::holds_alternative<bool>(covariance)) {
+        auto motion_model {motion_model::MultivariateMotionModel(Eigen::Vector3d(rel_odom.loc.x(), rel_odom.loc.y(), rel_odom.angle))};
+        cov_matrix = motion_model.get_covariance();
         std::cout << "Bad covariance detected for " << new_node->id << " and " << existing_node->id << std::endl;
-        return false;
-    }
-    auto cov_matrix {std::get<Eigen::Matrix3d>(covariance)};
+        std::cout << "Overriding with pure odometry covariance." << std::endl;
 
-    // and get the best pose
-    Pose best_pose {(*candidates)[0].relative_pose};
-    double best_prob {(*candidates)[0].p};
-    for (std::size_t i = 1; i < candidates->size(); i++) {
-        if ((*candidates)[i].p > best_prob) {
-            best_prob = (*candidates)[i].p;
-            best_pose = (*candidates)[i].relative_pose;
+        best_pose = rel_odom;
+    }
+    else{
+        cov_matrix = {std::get<Eigen::Matrix3d>(covariance)};
+        // and get the best pose
+        best_pose = (*candidates)[0].relative_pose;
+        double best_prob {(*candidates)[0].p};
+        for (std::size_t i = 1; i < candidates->size(); i++) {
+            if ((*candidates)[i].p > best_prob) {
+                best_prob = (*candidates)[i].p;
+                best_pose = (*candidates)[i].relative_pose;
+            }
         }
     }
+
     return std::make_pair<gtsam::Pose2, gtsam::Matrix>(gtsam::Pose2(best_pose.loc.x(), best_pose.loc.y(), best_pose.angle), gtsam::Matrix(cov_matrix));
 }
 
@@ -503,10 +511,12 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
 
                 // . compute scan similarity
                 double p_scan {};
-                for (const auto &point : cloud) {
-                    p_scan += ref->evaluate(point);
+                if (cloud.size() > 0) {
+                    for (const auto &point : cloud) {
+                        p_scan += ref->evaluate(point);
+                    }
+                    p_scan /= cloud.size();
                 }
-                p_scan /= cloud.size();
                 candidate.p_scan = p_scan;
 
                 // . compute the combined probability

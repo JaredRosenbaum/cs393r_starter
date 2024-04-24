@@ -61,6 +61,11 @@ public:
         return exp(-0.5 * (X - (*_mu)).transpose() * (*_inv_covariance) * (X - (*_mu)));
     }
 
+    Eigen::Matrix3d get_covariance(){
+        //! I don't believe a check that _covariance is populated is necessary since it should populate with the motion models instantiation
+        return *_covariance;
+    }
+
 private:
     std::unique_ptr<const Eigen::Vector3d> _mu;
     std::unique_ptr<const Eigen::Matrix3d> _covariance;
