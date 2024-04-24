@@ -80,7 +80,7 @@ void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) {
     return;
   }
 
-  const auto last_chain_pose {Pose(chain_[chain_.size() - 1]->abs_pose.x(), chain_[chain_.size() - 1]->abs_pose.y(), chain_[chain_.size() - 1]->abs_pose.theta())};
+  const auto last_chain_pose {Pose(chain_[chain_.size() - 1]->est_pose.x(), chain_[chain_.size() - 1]->est_pose.y(), chain_[chain_.size() - 1]->est_pose.theta())};
   Pose current {transformPoseCopy(odom_change_, last_chain_pose)};
   *loc = current.loc;
   *angle = current.angle;
@@ -184,11 +184,18 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
     prev_odom_pose_.angle = odom_angle;
 }
 
-vector<Vector2f> SLAM::GetMap() {
-    vector<Vector2f> map;
-    // TODO, should be straightforward using the same process as for visualization
+std::vector<Eigen::Vector2f> SLAM::GetMap() {
+    std::vector<Eigen::Vector2f> map;
     // Reconstruct the map as a single aligned point cloud from all saved poses
     // and their respective scans.
+    for (int i = 0; i < static_cast<int>(chain_.size()); i++) {
+        // transform cloud
+        auto viz_points {chain_[i]->points};
+        transformPoints(viz_points, Pose(chain_[i]->est_pose.x(), chain_[i]->est_pose.y(), chain_[i]->est_pose.theta()));
+
+        // add to map
+        map.insert(map.end(), viz_points.begin(), viz_points.end());
+    }
     return map;
 }
 
@@ -227,7 +234,7 @@ void SLAM::iterateSLAM(
 
             new_state->rel_pose = valid_results.first;
             new_state->rel_cov = valid_results.second;
-            new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->abs_pose);
+            new_state->est_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->est_pose);
 
             auto end_time {std::chrono::high_resolution_clock::now()};
             auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
@@ -240,14 +247,14 @@ void SLAM::iterateSLAM(
     } else { // if no previous data in the chain to compare to
         new_state->rel_pose = gtsam::Pose2(0, 0, 0);
         new_state->rel_cov = gtsam::Matrix(Eigen::Matrix3d::Zero());
-        new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), *starting_pose_);
+        new_state->est_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), *starting_pose_);
 
         // add to the chain
         chain_.push_back(new_state);
         std::cout << "State " << new_state->id << " added to chain!" << std::endl;
     }
 
-    std::cout << "Abs:\n" << new_state->abs_pose << "\nRel:\n" << new_state->rel_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
+    std::cout << "Abs:\n" << new_state->est_pose << "\nRel:\n" << new_state->rel_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
 
     // . now create all non-sequential states
     // for each comparison
@@ -270,10 +277,10 @@ void SLAM::iterateSLAM(
             node.rel_odom = transformPoseCopy(odom, chain_[index]->rel_odom);
             node.rel_pose = valid_results.first;
             node.rel_cov = valid_results.second;
-            node.abs_pose = transformPoseCopy(valid_results.first, chain_[index]->abs_pose);
+            node.est_pose = transformPoseCopy(valid_results.first, chain_[index]->est_pose);
             new_state->nodes.push_back(node);
 
-            // std::cout << "Abs:\n" << node.abs_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
+            // std::cout << "Abs:\n" << node.est_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
         }
     }
 
@@ -291,25 +298,26 @@ void SLAM::iterateSLAM(
     for (int i = 0; i < static_cast<int>(chain_.size()); i++) {
         // transform cloud
         auto viz_points {chain_[i]->points};
-        transformPoints(viz_points, Pose(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y(), chain_[i]->abs_pose.theta()));
+        transformPoints(viz_points, Pose(chain_[i]->est_pose.x(), chain_[i]->est_pose.y(), chain_[i]->est_pose.theta()));
 
         // visualize cloud
         for (const auto &point : viz_points) {
-            visualization::DrawPoint(point, 0xF633FF, vis_msg_);
+            visualization::DrawPoint(point, 0xC0C0C0, vis_msg_);
         }
-
+        // F633FF
+        
         // visualize pose
-        visualization::DrawParticle(Eigen::Vector2f(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y()), chain_[i]->abs_pose.theta(), vis_msg_);
+        visualization::DrawParticle(Eigen::Vector2f(chain_[i]->est_pose.x(), chain_[i]->est_pose.y()), chain_[i]->est_pose.theta(), vis_msg_);
 
         // and visualize all non-sequential ones to make sure they're in the right spot
         for (const auto &node : chain_[i]->nodes) {
-            visualization::DrawParticle(Eigen::Vector2f(node.abs_pose.x(), node.abs_pose.y()), node.abs_pose.theta(), vis_msg_);
+            visualization::DrawParticle(Eigen::Vector2f(node.est_pose.x(), node.est_pose.y()), node.est_pose.theta(), vis_msg_);
         }
     }
 
     // visualize the selected cloud from CSM
     auto viz_points {new_state->points};
-    transformPoints(viz_points, Pose(new_state->abs_pose.x(), new_state->abs_pose.y(), new_state->abs_pose.theta()));
+    transformPoints(viz_points, Pose(new_state->est_pose.x(), new_state->est_pose.y(), new_state->est_pose.theta()));
     for (const auto &point : viz_points) {
         visualization::DrawPoint(point, 0x33FF4A, vis_msg_);
     }
@@ -320,6 +328,7 @@ void SLAM::iterateSLAM(
     auto end_time {std::chrono::high_resolution_clock::now()};
     auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
     std::cout << ">> Finished SLAM update in " << time_duration.count() << "us" << std::endl;
+    iteration_counter_++;
 }
 
 // -------------------------------------------
@@ -338,7 +347,7 @@ void SLAM::optimizeChain()
 
     auto priorNoise = gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector3(0.1, 0.1, 0.03));
     graph.addPrior(0, gtsam::Pose2(0, 0, 0), priorNoise);
-    initial_estimate.insert(graph_id, chain_[0]->abs_pose);
+    initial_estimate.insert(graph_id, chain_[0]->est_pose);
 
     // start by adding sequential poses to graph
     for (std::size_t i = 1; i < chain_.size(); i++) {
@@ -349,7 +358,7 @@ void SLAM::optimizeChain()
             chain_[i]->rel_pose,
             gtsam::noiseModel::Gaussian::Covariance(chain_[i]->rel_cov)
         ));
-        initial_estimate.insert(graph_id, chain_[i]->abs_pose);
+        initial_estimate.insert(graph_id, chain_[i]->est_pose);
     }
 
     // now add in the non-sequential poses
@@ -362,7 +371,7 @@ void SLAM::optimizeChain()
                 n.rel_pose,
                 gtsam::noiseModel::Gaussian::Covariance(n.rel_cov)
             ));
-            initial_estimate.insert(graph_id, n.abs_pose);
+            initial_estimate.insert(graph_id, n.est_pose);
         }
     }
 
@@ -378,13 +387,13 @@ void SLAM::optimizeChain()
     int new_graph_id {0};
     for (std::size_t i = 1; i < chain_.size(); i++) {
         new_graph_id++;
-        chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
+        chain_[i]->est_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->est_pose);
     }
 
     for (auto &node : chain_) {
         for (auto &n : node->nodes) {
             new_graph_id++;
-            n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->abs_pose);
+            n.est_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->est_pose);
         }
     }
 }

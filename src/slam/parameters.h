@@ -19,9 +19,8 @@
 
 #define PROBABILITY_WEIGHT                   1 // used to calculate probability for candidate pose, might not actually do anything, but might affect the covariances, which might affect the way the pose graph optimization works; need to test once optimization is implemented
 
-#define K2              0.1 //0.5
-#define K3              0.1 //0.1
+#define K2              0.5 //0.5
+#define K3              0.5 //0.1
 #define K4              0.1 //0.1
-#define K5              0.1 //0.5
-#define K6              0.1 //0.5
-
+#define K5              0.5 //0.5
+#define K6              0.5 //0.5
