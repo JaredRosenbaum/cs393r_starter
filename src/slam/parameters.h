@@ -10,8 +10,8 @@
 #define MOTION_MODEL_Y_RESOLUTION           0.03    // m
 #define MOTION_MODEL_Y_LIMIT                0.15    // m
 #define MOTION_MODEL_THETA_RESOLUTION       0.03    // ~1.71 deg
-#define MOTION_MODEL_THETA_LIMIT            0.3     // ~17.19 deg
-#define DYNAMIC_ADJUSTMENT_DIVIDER          3       // denominator for dynamic allocation with further travel distance
+#define MOTION_MODEL_THETA_LIMIT            0.4     // ~17.19 deg
+// #define DYNAMIC_ADJUSTMENT_DIVIDER          4       // denominator for dynamic allocation with further travel distance
 
 #define LOOKUP_TABLE_RESOLUTION             0.03 // m
 #define LOOKUP_TABLE_SIGMA                  0.01 // 0.1 // m

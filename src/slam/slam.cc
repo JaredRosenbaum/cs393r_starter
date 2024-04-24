@@ -472,12 +472,15 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
     // used for dynamically allocation larger range of candidates for relative poses (which are further)
     const int translation_periods = std::round(odom.loc.norm() / ODOM_TRANSLATION_THRESHOLD);
     const int rotation_periods = std::round(std::abs(odom.angle) / ODOM_ROTATION_THRESHOLD);
-    const int periods = std::max(translation_periods, rotation_periods) - 1;
+    const int periods = std::max(translation_periods, rotation_periods);
 
     // iterate over candidates
-    const int x_iterations = std::round(std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
-    const int y_iterations = std::round(std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
-    const int theta_iterations = std::round(std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
+    const int x_iterations = std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION);
+    const int y_iterations = std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION);
+    const int theta_iterations = std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION);
+    // const int x_iterations = std::round(std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
+    // const int y_iterations = std::round(std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
+    // const int theta_iterations = std::round(std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
 
     // reserving space in candidates
     candidates->reserve(x_iterations * y_iterations * theta_iterations);
@@ -490,9 +493,9 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
                 
                 // . generate a candidate pose WRT to the body
                 auto candidate_pose {Pose(
-                        static_cast<float>(x_i * MOTION_MODEL_X_RESOLUTION), 
-                        static_cast<float>(y_i * MOTION_MODEL_Y_RESOLUTION), 
-                        static_cast<float>(theta_i * MOTION_MODEL_THETA_RESOLUTION))
+                        static_cast<float>(x_i * MOTION_MODEL_X_RESOLUTION * periods), 
+                        static_cast<float>(y_i * MOTION_MODEL_Y_RESOLUTION * periods), 
+                        static_cast<float>(theta_i * MOTION_MODEL_THETA_RESOLUTION * periods))
                 };
 
                 // . transform it back to the last frame (from odom)
