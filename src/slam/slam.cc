@@ -164,39 +164,12 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
             odom_rotation_change += odom_rotation;
 
             // Update location estimate of the robot based on the last reference pose
-            float trans = (odom_loc - reference_odom_pose_.loc).norm();
-            float rot = AngleDiff(odom_angle, reference_odom_pose_.angle);
-            odom_change_.loc = Eigen::Vector2f(
-                trans * cos(rot),
-                trans * sin(rot)
-            );
-            odom_change_.angle = rot;
-
-            // Keep track of pose change from odometry to estimate how far the robot has moved.
-            // float translation = (odom_loc - reference_odom_pose_.loc).norm();
-            // float rotation = AngleDiff(odom_angle, reference_odom_pose_.angle);
-
-            // odom_change_.loc = Eigen::Vector2f(
-            //     translation * cos(rotation),
-            //     translation * sin(rotation)
-            // );
-            // odom_change_.angle = rotation;
-
+            odom_change_.loc = odom_loc - reference_odom_pose_.loc;
+            odom_change_.angle = AngleDiff(odom_angle, reference_odom_pose_.angle);
 
             // Proceed with preparing a motion model when meeting threshold
-            // if ((translation > ODOM_TRANSLATION_THRESHOLD ||
-            //     std::abs(rotation) > ODOM_ROTATION_THRESHOLD) && !ready_for_slam_update_) {
             if ((odom_translation_change > ODOM_TRANSLATION_THRESHOLD || odom_rotation_change > ODOM_ROTATION_THRESHOLD) && !ready_for_slam_update_) {
-
-                std::cout << odom_translation_change << "\t" << odom_rotation_change << std::endl;
-
-                std::cout << odom_change_.loc.x() << "\t" << odom_change_.loc.y() << "\t" << odom_change_.angle << std::endl;
-                
-                std::cout << "HHHHH" << std::endl << "HHHHH" << std::endl << "HHHHH" << std::endl << std::endl;
-                
-                
-                // Calculate the change in odometry in reference to the odom frame (reference odom pose is (0, 0, 0))
-                ready_for_slam_update_ = true;
+                // ready_for_slam_update_ = true;
 
                 // Update reference pose
                 reference_odom_pose_.loc = odom_loc;
@@ -484,10 +457,16 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
     // create motion model
     auto motion_model {motion_model::MultivariateMotionModel(Eigen::Vector3d(odom.loc.x(), odom.loc.y(), odom.angle))};
 
+    // calculate periods of thresholds based on given odom pose.
+    // used for dynamically allocation larger range of candidates for relative poses (which are further)
+    const int translation_periods = std::round(odom.loc.norm() / ODOM_TRANSLATION_THRESHOLD);
+    const int rotation_periods = std::round(std::abs(odom.angle) / ODOM_ROTATION_THRESHOLD);
+    const int periods = std::max(translation_periods, rotation_periods) - 1;
+
     // iterate over candidates
-    const int x_iterations = std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION);
-    const int y_iterations = std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION);
-    const int theta_iterations = std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION);
+    const int x_iterations = std::round(std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
+    const int y_iterations = std::round(std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
+    const int theta_iterations = std::round(std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION) * (1 + (float)periods / DYNAMIC_ADJUSTMENT_DIVIDER));
 
     // reserving space in candidates
     candidates->reserve(x_iterations * y_iterations * theta_iterations);
