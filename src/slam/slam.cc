@@ -66,8 +66,8 @@ void SLAM::CreateVisPublisher(ros::NodeHandle* n) {
 void SLAM::InitializePose(const Eigen::Vector2f& loc, const float angle) {
   current_pose_.loc = loc;
   current_pose_.angle = angle;
-  starting_pose_ = std::make_shared<std::make_shared<gtsam::Pose2>>(loc.x(), loc.y(), angle);
-  visualization::ClearVisualizationMsg(vis_msg_);  visualization::ClearVisualizationMsg(vis_msg_);
+  starting_pose_ = std::make_shared<gtsam::Pose2>(loc.x(), loc.y(), angle);
+  visualization::ClearVisualizationMsg(vis_msg_);
   odom_initialized_ = false;
 }
 
