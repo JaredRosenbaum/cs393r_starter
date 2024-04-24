@@ -76,8 +76,9 @@ struct NonsequentialNode {
     Pose rel_odom;
     
     int graph_id;
-    gtsam::Pose2 abs_pose;
+    gtsam::Pose2 rel_pose;
     gtsam::Matrix rel_cov;
+    gtsam::Pose2 est_pose;
 }; // struct NonsequentialNode
 
 struct SequentialNode {
@@ -89,8 +90,9 @@ struct SequentialNode {
     std::vector<NonsequentialNode> nodes;
     
     int graph_id;
-    gtsam::Pose2 abs_pose;
+    gtsam::Pose2 rel_pose;
     gtsam::Matrix rel_cov;
+    gtsam::Pose2 est_pose;
 
     SequentialNode(const int &identifier, const Pose &odom, const std::vector<Eigen::Vector2f> &cloud) 
     : id(identifier), rel_odom(odom), points(cloud)
@@ -128,12 +130,6 @@ class SLAM {
   // Get latest robot pose.
   void GetPose(Eigen::Vector2f* loc, float* angle);
 
-  // *********88
-  void GTSAM_TEST(void);
-  std::vector<float> readFloatFile(const std::string& filename);
-  std::vector<Eigen::Vector2f> convertScan(std::vector<float> ranges);
-  // *********88
-
  private:
   ros::Publisher vis_pub_;
   amrl_msgs::VisualizationMsg vis_msg_;
@@ -145,12 +141,14 @@ class SLAM {
   bool ready_for_slam_update_;    // motion model 
   Pose current_pose_;
 
+
   // !!!
   int depth_;
+  int gtsam_timer_;
+  int iteration_counter_;
   std::vector<std::shared_ptr<SequentialNode>> chain_;
+  std::shared_ptr<gtsam::Pose2> starting_pose_;
 
-  gtsam::Pose2 starting_pose_;
-  
   void optimizeChain();
 
   void iterateSLAM(
@@ -164,8 +162,7 @@ class SLAM {
   std::shared_ptr<std::vector<Candidate>> generateCandidates(
       Pose odom,
       std::vector<Eigen::Vector2f> points,
-      std::shared_ptr<rasterization::LookupTable> &ref,
-      const std::vector<Eigen::Vector2f> &ref_points);
+      std::shared_ptr<rasterization::LookupTable> &ref);
   
   std::variant<bool, Eigen::Matrix3d> calculateCovariance(std::shared_ptr<std::vector<Candidate>> &candidates);
 

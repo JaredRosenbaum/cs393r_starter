@@ -19,14 +19,6 @@
 */
 //========================================================================
 
-// TODO
-// + fill in GetMap function
-// + test with different parameters for scan matching and motion model (figure out why scan drifts over time and how to fix it)
-// + finish GTSAM implementation and test
-// + inputs to GTSAM sometimes are unstable (probably NaNs) maybe have a check and don't add or set if contains
-// + consider changing sampling limits and resolutions relative to odometry (so if we've moved farther, increase the size of the search space but keep the same number of samples?)
-// + make sample generation start at zero and move out to either side uniformly (so there's always one that's exactly 0, 0, 0 relative to odom)
-
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -62,7 +54,9 @@ namespace slam {
 SLAM::SLAM() :
     odom_initialized_(false),
     ready_for_slam_update_(false),
-    depth_(POSE_GRAPH_CONNECTION_DEPTH) {}
+    depth_(POSE_GRAPH_CONNECTION_DEPTH),
+    gtsam_timer_(0),
+    iteration_counter_(0) {}
 
 void SLAM::CreateVisPublisher(ros::NodeHandle* n) {
     vis_pub_ = n->advertise<amrl_msgs::VisualizationMsg>("visualization", 1);
@@ -72,22 +66,21 @@ void SLAM::CreateVisPublisher(ros::NodeHandle* n) {
 void SLAM::InitializePose(const Eigen::Vector2f& loc, const float angle) {
   current_pose_.loc = loc;
   current_pose_.angle = angle;
-  starting_pose_ = gtsam::Pose2(loc.x(), loc.y(), angle);
-
+  starting_pose_ = std::make_shared<gtsam::Pose2>(loc.x(), loc.y(), angle);
+  visualization::ClearVisualizationMsg(vis_msg_);
   odom_initialized_ = false;
 }
 
 void SLAM::GetPose(Eigen::Vector2f* loc, float* angle) {
   // Return the latest pose estimate of the robot.
-//   *loc = current_pose_.loc;
-//   *angle = current_pose_.angle;
   if (!(chain_.size() > 0)) {
-    *loc = current_pose_.loc;
-    *angle = current_pose_.angle;
+    const auto pose {transformPoseCopy(odom_change_, current_pose_)};
+    *loc = pose.loc;
+    *angle = pose.angle;
     return;
   }
 
-  const auto last_chain_pose {Pose(chain_[chain_.size() - 1]->abs_pose.x(), chain_[chain_.size() - 1]->abs_pose.y(), chain_[chain_.size() - 1]->abs_pose.theta())};
+  const auto last_chain_pose {Pose(chain_[chain_.size() - 1]->est_pose.x(), chain_[chain_.size() - 1]->est_pose.y(), chain_[chain_.size() - 1]->est_pose.theta())};
   Pose current {transformPoseCopy(odom_change_, last_chain_pose)};
   *loc = current.loc;
   *angle = current.angle;
@@ -98,105 +91,143 @@ void SLAM::ObserveLaser(const vector<float>& ranges,
                         float range_max,
                         float angle_min,
                         float angle_max) {
-  // A new laser scan has been observed. Decide whether to add it as a pose
-  // for SLAM. If decided to add, align it to the scan from the last saved pose,
-  // and save both the scan and the optimized pose.
+    // A new laser scan has been observed. Decide whether to add it as a pose
+    // for SLAM. If decided to add, align it to the scan from the last saved pose,
+    // and save both the scan and the optimized pose.
 
-  // TODO should the laser scan be downsampled?
-
-  // Disregard scans until motion model threshold has been met
-  if (!ready_for_slam_update_) {
-    return;
-  }
-
-  // Convert laser scan to point cloud centered around base_link
-  std::vector<Eigen::Vector2f> point_cloud;
-  float angle_inc = (angle_max - angle_min) / ranges.size();
-  for (std::size_t i = 0; i < ranges.size(); i++) {
-    // Ignore points that are not obstacles
-    if (ranges[i] >= range_max) {
-      continue;
+    // Disregard scans until motion model threshold has been met
+    if (!ready_for_slam_update_) {
+        return;
     }
 
-    // Create point coordinates in robot frame
-    const Eigen::Vector2f lidar_loc(0.2, 0);    // LiDAR is 20cm in front of base link
-    float theta = angle_inc * i + angle_min;    // angle_min is -2.35619
-    Eigen::Vector2f point(
-      ranges[i] * cos(theta) + lidar_loc.x(),
-      ranges[i] * sin(theta) + lidar_loc.y()
-    );
+    std::vector<Eigen::Vector2f> point_cloud;
 
-    // Push into point cloud vector
-    point_cloud.push_back(point);
-  }
+    // Convert laser scan to point cloud centered around base_link
+    float angle_inc = (angle_max - angle_min) / ranges.size();
+    for (std::size_t i = 0; i < ranges.size(); i++) {
+        // Ignore points that are not obstacles
+        if (ranges[i] >= range_max) {
+        continue;
+        }
 
-  // Publish point cloud visualization
-  vis_msg_.header.stamp = ros::Time::now();
-  vis_pub_.publish(vis_msg_);
+        // Create point coordinates in robot frame
+        const Eigen::Vector2f lidar_loc(0.2, 0);    // LiDAR is 20cm in front of base link
+        float theta = angle_inc * i + angle_min;    // angle_min is -2.35619
+        Eigen::Vector2f point(
+        ranges[i] * cos(theta) + lidar_loc.x(),
+        ranges[i] * sin(theta) + lidar_loc.y()
+        );
 
-  // update SLAM
-  iterateSLAM(odom_change_, point_cloud);
+        // Push into point cloud vector
+        point_cloud.push_back(point);
+    }
 
-  // Clear motion model flag
-  ready_for_slam_update_ = false;
+    // Publish point cloud visualization
+    vis_msg_.header.stamp = ros::Time::now();
+    vis_pub_.publish(vis_msg_);
+
+    // update SLAM
+    iterateSLAM(odom_change_, point_cloud);
+
+    // Clear motion model flag
+    ready_for_slam_update_ = false;
 }
 
 void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
+    static float odom_translation_change;
+    static float odom_rotation_change;
 
-  // Disregard first odometry reading, set pose variables
-  if (!odom_initialized_) {
-    reference_odom_pose_.loc = odom_loc;
-    reference_odom_pose_.angle = odom_angle;
-
-    odom_initialized_ = true;
-    return;
-  }
-  else {
-    // Calculate pose change from odometry reading
-    Eigen::Vector2f odom_translation = odom_loc - prev_odom_pose_.loc;
-    float odom_rotation = AngleDiff(odom_angle, prev_odom_pose_.angle);
-
-    // Ignore unrealistic jumps in odometry
-    if (odom_translation.norm() < 1.0 && abs(odom_rotation) < M_PI_4) {
-
-      // Keep track of pose change from odometry to estimate how far the robot has moved.
-      float translation = (odom_loc - reference_odom_pose_.loc).norm();
-      float rotation = AngleDiff(odom_angle, reference_odom_pose_.angle);
-      // std::cout << translation << ", " << rotation << std::endl;
-
-      odom_change_.loc = Eigen::Vector2f(
-        translation * cos(rotation),
-        translation * sin(rotation)
-      );
-      odom_change_.angle = rotation;
-
-      // Proceed with preparing a motion model when meeting threshold
-      if ((translation > ODOM_TRANSLATION_THRESHOLD ||
-        std::abs(rotation) > ODOM_ROTATION_THRESHOLD) && !ready_for_slam_update_) {
-        // Calculate the change in odometry in reference to the odom frame (reference odom pose is (0, 0, 0))
-        ready_for_slam_update_ = true;
-
-        // Update reference pose
-        reference_odom_pose_.loc = odom_loc;      
-        reference_odom_pose_.angle = odom_angle;
-      }
+    if (starting_pose_ == nullptr) {
+        return;
     }
-  }
 
-  // Update previous odometry reading
-  prev_odom_pose_.loc = odom_loc;
-  prev_odom_pose_.angle = odom_angle;
+    // Disregard first odometry reading, set pose variables
+    if (!odom_initialized_) {
+        odom_translation_change = 0;
+        odom_rotation_change = 0;
+
+        reference_odom_pose_.loc = odom_loc;
+        reference_odom_pose_.angle = odom_angle;
+
+        odom_initialized_ = true;
+        return;
+    }
+    else {
+        // Calculate pose change from odometry reading
+        float odom_translation = (odom_loc - prev_odom_pose_.loc).norm();
+        float odom_rotation = std::abs(AngleDiff(odom_angle, prev_odom_pose_.angle));
+
+        // Ignore unrealistic jumps in odometry
+        if (odom_translation < 1.0 && odom_rotation < M_PI_4) {
+            // Keep track of movement from odometry readings to estimate how far the robot has moved
+            odom_translation_change += odom_translation;
+            odom_rotation_change += odom_rotation;
+
+            // Update location estimate of the robot based on the last reference pose
+            float trans = (odom_loc - reference_odom_pose_.loc).norm();
+            float rot = AngleDiff(odom_angle, reference_odom_pose_.angle);
+            odom_change_.loc = Eigen::Vector2f(
+                trans * cos(rot),
+                trans * sin(rot)
+            );
+            odom_change_.angle = rot;
+
+            // Keep track of pose change from odometry to estimate how far the robot has moved.
+            // float translation = (odom_loc - reference_odom_pose_.loc).norm();
+            // float rotation = AngleDiff(odom_angle, reference_odom_pose_.angle);
+
+            // odom_change_.loc = Eigen::Vector2f(
+            //     translation * cos(rotation),
+            //     translation * sin(rotation)
+            // );
+            // odom_change_.angle = rotation;
+
+
+            // Proceed with preparing a motion model when meeting threshold
+            // if ((translation > ODOM_TRANSLATION_THRESHOLD ||
+            //     std::abs(rotation) > ODOM_ROTATION_THRESHOLD) && !ready_for_slam_update_) {
+            if ((odom_translation_change > ODOM_TRANSLATION_THRESHOLD || odom_rotation_change > ODOM_ROTATION_THRESHOLD) && !ready_for_slam_update_) {
+
+                std::cout << odom_translation_change << "\t" << odom_rotation_change << std::endl;
+
+                std::cout << odom_change_.loc.x() << "\t" << odom_change_.loc.y() << "\t" << odom_change_.angle << std::endl;
+                
+                std::cout << "HHHHH" << std::endl << "HHHHH" << std::endl << "HHHHH" << std::endl << std::endl;
+                
+                
+                // Calculate the change in odometry in reference to the odom frame (reference odom pose is (0, 0, 0))
+                ready_for_slam_update_ = true;
+
+                // Update reference pose
+                reference_odom_pose_.loc = odom_loc;
+                reference_odom_pose_.angle = odom_angle;
+
+                // Reset odom change variables
+                odom_translation_change = 0;
+                odom_rotation_change = 0;
+            }
+        }
+    }
+
+    // Update previous odometry reading
+    prev_odom_pose_.loc = odom_loc;
+    prev_odom_pose_.angle = odom_angle;
 }
 
-vector<Vector2f> SLAM::GetMap() {
-  vector<Vector2f> map;
-    // TODO, should be straightforward using the same process as for visualization
-  // Reconstruct the map as a single aligned point cloud from all saved poses
-  // and their respective scans.
-  return map;
-}
+std::vector<Eigen::Vector2f> SLAM::GetMap() {
+    std::vector<Eigen::Vector2f> map;
+    // Reconstruct the map as a single aligned point cloud from all saved poses
+    // and their respective scans.
+    for (int i = 0; i < static_cast<int>(chain_.size()); i++) {
+        // transform cloud
+        auto viz_points {chain_[i]->points};
+        transformPoints(viz_points, Pose(chain_[i]->est_pose.x(), chain_[i]->est_pose.y(), chain_[i]->est_pose.theta()));
 
-// !!! SLAM STUFF
+        // add to map
+        map.insert(map.end(), viz_points.begin(), viz_points.end());
+    }
+    return map;
+}
 
 // -------------------------------------------
 // * Primary Update
@@ -208,7 +239,7 @@ void SLAM::iterateSLAM(
 {
     auto start_time {std::chrono::high_resolution_clock::now()};
     std::cout << "\n\n=====================================" << std::endl;
-    std::cout << "UPDATE" << std::endl;
+    std::cout << "UPDATE " << iteration_counter_ << std::endl;
     std::cout << "=====================================" << std::endl;
 
     // . add new sequential state
@@ -216,22 +247,24 @@ void SLAM::iterateSLAM(
     std::cout << "Creating new state with ID " << new_state->id << " and " << cloud.size() << " points." << std::endl;
 
     // compare with previous state and populate pose and covariance
-    if (!chain_.empty()) {
+    if (!chain_.empty()) { // if data immediately before this exists
         auto start_time {std::chrono::high_resolution_clock::now()};
         int index {static_cast<int>(chain_.size()) - 1};
 
         // perform the update (results same for sequenial and non-sequential scans, but the way they are stored is different)
-        auto results {pairwiseComparison(new_state, chain_[index])};
+        auto csm_results {pairwiseComparison(new_state, chain_[index])};
 
         // TODO how to handle bad comparison here?
-        if (std::holds_alternative<bool>(results)) {
-            std::cout << "Bad results for " << new_state->id << ". Unable to add to chain." << std::endl;
+        if (std::holds_alternative<bool>(csm_results)) {
+            std::cerr << "Invalid CSM results for " << new_state->id << ". Unable to add to chain." << std::endl;
+
         } else {
             // convert relative pose to absolute pose using previous absolute pose
-            auto good_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(results)};
+            auto valid_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(csm_results)};
 
-            new_state->abs_pose = transformPoseCopy(good_results.first, chain_[index]->abs_pose);
-            new_state->rel_cov = good_results.second;
+            new_state->rel_pose = valid_results.first;
+            new_state->rel_cov = valid_results.second;
+            new_state->est_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->est_pose);
 
             auto end_time {std::chrono::high_resolution_clock::now()};
             auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
@@ -241,120 +274,121 @@ void SLAM::iterateSLAM(
             chain_.push_back(new_state);
             std::cout << "State " << new_state->id << " added to chain!" << std::endl;
         }
-    } else {
-        // new_state->abs_pose = gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle);
-        // new_state->abs_pose = gtsam::Pose2(0, 0, 0);
-        new_state->abs_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), starting_pose_);
+    } else { // if no previous data in the chain to compare to
+        new_state->rel_pose = gtsam::Pose2(0, 0, 0);
         new_state->rel_cov = gtsam::Matrix(Eigen::Matrix3d::Zero());
-        
+        new_state->est_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), *starting_pose_);
+
         // add to the chain
         chain_.push_back(new_state);
         std::cout << "State " << new_state->id << " added to chain!" << std::endl;
     }
 
-    std::cout << "Pose:\n" << new_state->abs_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
+    std::cout << "Abs:\n" << new_state->est_pose << "\nRel:\n" << new_state->rel_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
 
     // . now create all non-sequential states
     // for each comparison
     for (int i = 1; i <= depth_; i++) {
         int index {(static_cast<int>(chain_.size()) - 1) - i - 1};
         if (index < 0) {continue;}
-        std::cout << "\nAdding nonsequential relation with " << index << std::endl;
+        // std::cout << "\nAdding nonsequential relation with " << index << std::endl;
 
         // get pose and covariance
-        auto results {pairwiseComparison(new_state, chain_[index])};
+        auto csm_results {pairwiseComparison(new_state, chain_[index])};
 
-        if (std::holds_alternative<bool>(results)) {
-            std::cout << "Bad results for " << new_state->id << ". Unable to add to chain." << std::endl;
+        if (std::holds_alternative<bool>(csm_results)) {
+            std::cerr << "Invalid CSM results for " << new_state->id << ". Unable to add to chain." << std::endl;
         } else {
-            auto good_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(results)};
+            auto valid_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(csm_results)};
 
             // store them appropriately
             NonsequentialNode node;
             node.parent = chain_[index]->id;
             node.rel_odom = transformPoseCopy(odom, chain_[index]->rel_odom);
-            node.abs_pose = transformPoseCopy(good_results.first, chain_[index]->abs_pose);
-            node.rel_cov = good_results.second;
+            node.rel_pose = valid_results.first;
+            node.rel_cov = valid_results.second;
+            node.est_pose = transformPoseCopy(valid_results.first, chain_[index]->est_pose);
             new_state->nodes.push_back(node);
 
-            std::cout << "Pose:\n" << node.abs_pose.x() << ", " << node.abs_pose.y() << ", " << node.abs_pose.theta() << "\nCov:\n" << node.rel_cov << std::endl;
+            // std::cout << "Abs:\n" << node.est_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
         }
     }
 
     // . perform pose graph optimization using GTSAM
-    // optimizeChain();
+    gtsam_timer_++;
+    if (gtsam_timer_ == GTSAM_FREQUENCY) {
+        std::cout << "Running through GTSAM!" << std::endl;
+        optimizeChain();
+        gtsam_timer_ = 0;
+    }
 
     // . now add visualization stuff here for debugging
-    std::cout << "Trying to visualize..." << std::endl;
     visualization::ClearVisualizationMsg(vis_msg_);
 
     for (int i = 0; i < static_cast<int>(chain_.size()); i++) {
         // transform cloud
         auto viz_points {chain_[i]->points};
-        transformPoints(viz_points, Pose(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y(), chain_[i]->abs_pose.theta()));
+        transformPoints(viz_points, Pose(chain_[i]->est_pose.x(), chain_[i]->est_pose.y(), chain_[i]->est_pose.theta()));
 
         // visualize cloud
         for (const auto &point : viz_points) {
-            visualization::DrawPoint(point, 0xF633FF, vis_msg_);
+            visualization::DrawPoint(point, 0xC0C0C0, vis_msg_);
         }
-
+        // F633FF
+        
         // visualize pose
-        visualization::DrawParticle(Eigen::Vector2f(chain_[i]->abs_pose.x(), chain_[i]->abs_pose.y()), chain_[i]->abs_pose.theta(), vis_msg_);
+        visualization::DrawParticle(Eigen::Vector2f(chain_[i]->est_pose.x(), chain_[i]->est_pose.y()), chain_[i]->est_pose.theta(), vis_msg_);
 
         // and visualize all non-sequential ones to make sure they're in the right spot
         for (const auto &node : chain_[i]->nodes) {
-            visualization::DrawParticle(Eigen::Vector2f(node.abs_pose.x(), node.abs_pose.y()), node.abs_pose.theta(), vis_msg_);
+            visualization::DrawParticle(Eigen::Vector2f(node.est_pose.x(), node.est_pose.y()), node.est_pose.theta(), vis_msg_);
         }
-        
-        vis_msg_.header.stamp = ros::Time::now();
-        vis_pub_.publish(vis_msg_);
-
-        // std::string input;
-        // std::getline(std::cin, input);
-
-        // visualization::ClearVisualizationMsg(vis_msg_);
     }
 
+    // visualize the selected cloud from CSM
+    auto viz_points {new_state->points};
+    transformPoints(viz_points, Pose(new_state->est_pose.x(), new_state->est_pose.y(), new_state->est_pose.theta()));
+    for (const auto &point : viz_points) {
+        visualization::DrawPoint(point, 0x33FF4A, vis_msg_);
+    }
+
+    vis_msg_.header.stamp = ros::Time::now();
+    vis_pub_.publish(vis_msg_);
 
     auto end_time {std::chrono::high_resolution_clock::now()};
     auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
     std::cout << ">> Finished SLAM update in " << time_duration.count() << "us" << std::endl;
+    iteration_counter_++;
 }
 
 // -------------------------------------------
 // * Pose Graph Optimization
 // -------------------------------------------
 
-// WIP
 void SLAM::optimizeChain()
 {
-    // create GTSAM graph
+    // create GTSAM graph and initial estimate
     gtsam::NonlinearFactorGraph graph;
+    gtsam::Values initial_estimate;
 
     // iterate over chain and add all points and initial estimates
-    // ? need to associate poses with unique indexes for recovery
+    // need to associate poses with unique indexes for recovery
     int graph_id {0};
-
-    gtsam::Values initial_estimate;
-    initial_estimate.insert(graph_id, chain_[0]->abs_pose);
 
     auto priorNoise = gtsam::noiseModel::Diagonal::Sigmas(gtsam::Vector3(0.1, 0.1, 0.03));
     graph.addPrior(0, gtsam::Pose2(0, 0, 0), priorNoise);
+    initial_estimate.insert(graph_id, chain_[0]->est_pose);
 
-    // start by adding sequential poses to graph, make sure they don't change with optimization
-    std::cout << "-----------------" << std::endl;
-    std::cout << "Pre optimization: " << std::endl;
+    // start by adding sequential poses to graph
     for (std::size_t i = 1; i < chain_.size(); i++) {
         graph_id++;
         graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
             graph_id - 1,
             graph_id,
-            chain_[i - 1]->abs_pose.between(chain_[i]->abs_pose),
+            chain_[i]->rel_pose,
             gtsam::noiseModel::Gaussian::Covariance(chain_[i]->rel_cov)
         ));
-
-        initial_estimate.insert(graph_id, chain_[i]->abs_pose);
-        std::cout << "\t" << graph_id << ": " << chain_[i]->abs_pose << std::endl;
+        initial_estimate.insert(graph_id, chain_[i]->est_pose);
     }
 
     // now add in the non-sequential poses
@@ -364,47 +398,32 @@ void SLAM::optimizeChain()
             graph.add(gtsam::BetweenFactor<gtsam::Pose2>(
                 n.parent,
                 graph_id,
-                chain_[n.parent]->abs_pose.between(n.abs_pose),
+                n.rel_pose,
                 gtsam::noiseModel::Gaussian::Covariance(n.rel_cov)
             ));
-            initial_estimate.insert(graph_id, n.abs_pose);
-            std::cout << "\t" << graph_id << ": " << n.abs_pose << std::endl;
+            initial_estimate.insert(graph_id, n.est_pose);
         }
     }
 
     // print the graph
     // graph.print();
+    graph.saveGraph("/home/dev/cs393r_starter/graphs/gtsam.dot");
 
     // optimize the graph
-    // gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimate);
-    gtsam::GaussNewtonParams parameters;
-    parameters.relativeErrorTol = 1e-5;
-    parameters.maxIterations = 100;
-    gtsam::GaussNewtonOptimizer optimizer(graph, initial_estimate, parameters);
+    gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimate);
     gtsam::Values optimized_result = optimizer.optimize();
 
-    std::cout << "Post optimization: " << std::endl;
-    for (int i = 0; i <= graph_id; i++) {
-        auto optimized_pose {optimized_result.at<gtsam::Pose2>(i)};
-        std::cout << "\t" << i << ": " << optimized_pose << std::endl;
-    }
-
-    // ??? it looks like this output is the relative again??? so should we now recombine them to get the new absolutes?
-
-    // !!! iterate over the data and update it
+    // iterate over the data and update it
     int new_graph_id {0};
     for (std::size_t i = 1; i < chain_.size(); i++) {
         new_graph_id++;
-        chain_[i]->abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[i - 1]->abs_pose);
-        // *************************************
-        // !!! maybe also update covariance???
-        // *************************************
+        chain_[i]->est_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->est_pose);
     }
 
     for (auto &node : chain_) {
         for (auto &n : node->nodes) {
             new_graph_id++;
-            n.abs_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[n.parent]->abs_pose);
+            n.est_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(new_graph_id), chain_[0]->est_pose);
         }
     }
 }
@@ -422,16 +441,14 @@ std::variant<bool, std::pair<gtsam::Pose2, gtsam::Matrix>> SLAM::pairwiseCompari
     if (new_node->id != existing_node->id + 1) {
         Pose rel_pose(0, 0, 0);
         for (int i = 0; i < new_node->id - existing_node->id - 1; i++) {
-            // std::cout << "Transforming " << rel_pose.loc.transpose() << ", " << rel_pose.angle << " using " << chain_[existing_node->id + i]->rel_odom.loc.transpose() << ", " << chain_[existing_node->id + i]->rel_odom.angle << std::endl;
             transformPose(rel_pose, chain_[existing_node->id + i]->rel_odom);
         }
         transformPose(rel_pose, new_node->rel_odom);
         rel_odom = rel_pose;
-        // std::cout << "Relative odom accumulated between nodes " << existing_node->id << " and " << new_node->id << ": " << rel_pose.loc.transpose() << ", " << rel_pose.angle << std::endl;
     }
     
     // generate candidates
-    auto candidates {generateCandidates(rel_odom, new_node->points, existing_node->lookup_table, existing_node->points)};
+    auto candidates {generateCandidates(rel_odom, new_node->points, existing_node->lookup_table)};
 
     // calculate covariance
     auto covariance {calculateCovariance(candidates)};
@@ -460,10 +477,8 @@ std::variant<bool, std::pair<gtsam::Pose2, gtsam::Matrix>> SLAM::pairwiseCompari
 std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
     Pose odom,
     std::vector<Eigen::Vector2f> points,
-    std::shared_ptr<rasterization::LookupTable> &ref,
-    const std::vector<Eigen::Vector2f> &ref_points)
+    std::shared_ptr<rasterization::LookupTable> &ref)
 {
-    // std::shared_ptr<std::vector<Candidate>> candidates;
     auto candidates {std::make_shared<std::vector<Candidate>>()};
 
     // create motion model
@@ -479,13 +494,7 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
 
     // Triple loop to populate motion model poses with variance in each dimension. This creates a cube of next state possibilities
     for (int theta_i = -theta_iterations; theta_i <= theta_iterations; theta_i++) {
-
         Candidate candidate;
-        // ! rotate the point cloud (expensive!)
-        // !!! realize we will need to do the combined transform for both the odom and this block
-        // auto cloud {points}; 
-        // transformPoints(cloud, Pose(0, 0, theta_i + odom.angle));
-
         for (int  y_i = -y_iterations; y_i <= y_iterations; y_i++) {
             for (int x_i = -x_iterations; x_i <= x_iterations; x_i++) {
                 
@@ -495,26 +504,19 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
                         static_cast<float>(y_i * MOTION_MODEL_Y_RESOLUTION), 
                         static_cast<float>(theta_i * MOTION_MODEL_THETA_RESOLUTION))
                 };
-                // std::cout << "Odom: " << odom.loc.x() << ", " << odom.loc.y() << ", " << odom.angle << std::endl;
-                // std::cout << "Candidate: " << candidate_pose.loc.x() << ", " << candidate_pose.loc.y() << ", " << candidate_pose.angle << std::endl;
 
                 // . transform it back to the last frame (from odom)
                 transformPose(candidate_pose, odom);
-                // std::cout << "Transformed: " << candidate_pose.loc.x() << ", " << candidate_pose.loc.y() << ", " << candidate_pose.angle << std::endl;
 
                 // . set the relative pose
                 candidate.relative_pose = candidate_pose;
-
-                // std::cout << "\tEvaluating candidate pose: " << candidate_pose.loc.x() << ", " << candidate_pose.loc.y() << ", " << candidate_pose.angle << std::endl;
 
                 // . use motion model to fill in the p_motion
                 candidate.p_motion = motion_model.evaluate(Eigen::Vector3d(candidate_pose.loc.x(), candidate_pose.loc.y(), candidate_pose.angle));
 
                 // . transform the points to the candidate frame
-                // transformPoints(cloud, Pose(odom.loc.x() * odom.angle, odom.loc.y() * odom.angle, 0));
                 auto cloud {points};
                 Eigen::Matrix3f transform {pose2Transform(candidate_pose)};
-                // std::cout << "\tProduced cloud transform:\n" << transform << std::endl;
                 transformPoints(cloud, transform);
 
                 // . compute scan similarity
@@ -530,34 +532,6 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
                 
                 // . add the candidate to the output
                 candidates->push_back(candidate);
-
-                // . now add visualization stuff here
-                // // draw reference cloud
-                // for (const auto &point : ref_points) {
-                //     visualization::DrawPoint(point, 0xF633FF, vis_msg_);
-                // }
-
-                // // draw projected cloud
-                // for (const auto &point : cloud) {
-                //     visualization::DrawPoint(point, 0x33FF50, vis_msg_);
-                // }
-
-                // // draw pose
-                // visualization::DrawParticle(candidate.relative_pose.loc, candidate.relative_pose.angle, vis_msg_);
-
-                // // print info to terminal
-                // std::cout << "p_scan: " << candidate.p_scan << ", p_motion: " << candidate.p_motion << ", p: " << candidate.p << std::endl;
-
-                // // publish msg
-                // vis_msg_.header.stamp = ros::Time::now();
-                // vis_pub_.publish(vis_msg_);
-
-                // // wait for input
-                // std::string input;
-                // std::getline(std::cin, input);
-
-                // // clear visualization
-                // visualization::ClearVisualizationMsg(vis_msg_);
             }
         }
     }
@@ -580,7 +554,7 @@ std::variant<bool, Eigen::Matrix3d> SLAM::calculateCovariance(std::shared_ptr<st
         s += candidate.p_motion*candidate.p_scan;
     }
 
-    if (s == 0) {
+    if (s < 1e-9) {
         return false;
     }
 
@@ -815,142 +789,6 @@ void SLAM::transformPoints(std::vector<Eigen::Vector2f> &points, const Pose &pos
                     sin(pose.angle), cos(pose.angle), pose.loc.y(),
                     0, 0, 1;
     transformPoints(points, transform);
-}
-
-
-
-
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <string>
-
-void SLAM::GTSAM_TEST(void) {
-  visualization::ClearVisualizationMsg(vis_msg_);
-
-  // Poses
-  Pose pose_1(-26, 8, 0);
-  Pose pose_2(-24, 8, 0);
-  Pose pose_3(-22, 8, 0);
-  Pose pose_4(-20, 8, 0);
-  Pose pose_5(-18, 8, 0);
-
-  // Scans
-  std::vector<float> ranges_1 = readFloatFile("/home/dev/cs393r_starter/test_files/scan1.txt");
-  std::vector<float> ranges_2 = readFloatFile("/home/dev/cs393r_starter/test_files/scan2.txt");
-  std::vector<float> ranges_3 = readFloatFile("/home/dev/cs393r_starter/test_files/scan3.txt");
-  std::vector<float> ranges_4 = readFloatFile("/home/dev/cs393r_starter/test_files/scan4.txt");
-  std::vector<float> ranges_5 = readFloatFile("/home/dev/cs393r_starter/test_files/scan5.txt");
-
-  // Get pose differences
-  Pose diff_2;
-  diff_2.loc = pose_2.loc - pose_1.loc;
-  diff_2.angle = AngleDiff(pose_2.angle, pose_1.angle);
-  Pose diff_3;
-  diff_3.loc = pose_3.loc - pose_2.loc;
-  diff_3.angle = AngleDiff(pose_3.angle, pose_2.angle);
-  Pose diff_4;
-  diff_4.loc = pose_4.loc - pose_3.loc;
-  diff_4.angle = AngleDiff(pose_4.angle, pose_3.angle);
-  Pose diff_5;
-  diff_5.loc = pose_5.loc - pose_4.loc;
-  diff_5.angle = AngleDiff(pose_5.angle, pose_4.angle);
-
-  // Convert scans to point clouds
-  std::vector<Eigen::Vector2f> cloud_1 = convertScan(ranges_1);
-  std::vector<Eigen::Vector2f> cloud_2 = convertScan(ranges_2);
-  std::vector<Eigen::Vector2f> cloud_3 = convertScan(ranges_3);
-  std::vector<Eigen::Vector2f> cloud_4 = convertScan(ranges_4);
-  std::vector<Eigen::Vector2f> cloud_5 = convertScan(ranges_5);
-
-  // Visualize point clouds 
-  // for (const auto &point : cloud_1) {
-  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
-  // }
-  // vis_msg_.header.stamp = ros::Time::now();
-  // vis_pub_.publish(vis_msg_);
-  // for (const auto &point : cloud_2) {
-  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
-  // }
-  // ros::Duration(1).sleep();
-  // vis_msg_.header.stamp = ros::Time::now();
-  // vis_pub_.publish(vis_msg_);
-  // for (const auto &point : cloud_3) {
-  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
-  // }
-  // ros::Duration(1).sleep();
-  // vis_msg_.header.stamp = ros::Time::now();
-  // vis_pub_.publish(vis_msg_);
-  // for (const auto &point : cloud_4) {
-  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
-  // }
-  // ros::Duration(1).sleep();
-  // vis_msg_.header.stamp = ros::Time::now();
-  // vis_pub_.publish(vis_msg_);
-  // for (const auto &point : cloud_5) {
-  //   visualization::DrawPoint(point, 0xF633FF, vis_msg_);
-  // }
-  // ros::Duration(1).sleep();
-  // vis_msg_.header.stamp = ros::Time::now();
-  // vis_pub_.publish(vis_msg_);
-
-  // Test GTSAM
-  iterateSLAM(diff_2, cloud_2);
-  iterateSLAM(diff_3, cloud_3);
-  iterateSLAM(diff_4, cloud_4);
-  iterateSLAM(diff_5, cloud_5);
-}
-
-std::vector<float> SLAM::readFloatFile(const std::string& filename) {
-    std::vector<float> floats;
-    std::ifstream file(filename);
-    
-    if (!file.is_open()) {
-        std::cerr << "Error: Unable to open file " << filename << std::endl;
-        return floats; // Return empty vector if file cannot be opened
-    }
-    
-    std::string line;
-    while (std::getline(file, line)) {
-        std::istringstream iss(line);
-        std::string token;
-        while (std::getline(iss, token, ',')) {
-            float value = std::stof(token);
-            floats.push_back(value);
-        }
-    }
-    
-    file.close();
-    return floats;
-}
-
-std::vector<Eigen::Vector2f> SLAM::convertScan(std::vector<float> ranges) {
-  // Convert scans to point clouds
-  std::vector<Eigen::Vector2f> point_cloud;
-  float angle_max = 2.356194496154785;
-  float angle_min = -2.356194496154785;
-  float range_max = 10;
-  float angle_inc = (angle_max - angle_min) / ranges.size();
-  for (std::size_t i = 0; i < ranges.size(); i++) {
-    // Ignore points that are not obstacles
-    if (ranges[i] >= range_max) {
-      continue;
-    }
-
-    // Create point coordinates in robot frame
-    const Eigen::Vector2f lidar_loc(0.2, 0);    // LiDAR is 20cm in front of base link
-    float theta = angle_inc * i + angle_min;    // angle_min is -2.35619
-    Eigen::Vector2f point(
-      ranges[i] * cos(theta) + lidar_loc.x(),
-      ranges[i] * sin(theta) + lidar_loc.y()
-    );
-
-    // Push into point cloud vector
-    point_cloud.push_back(point);
-  }
-
-  return point_cloud;
 }
 
 }  // namespace slam

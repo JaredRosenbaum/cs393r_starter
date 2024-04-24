@@ -143,15 +143,13 @@ void OdometryCallback(const nav_msgs::Odometry& msg) {
 }
 
 void InitCallback(const amrl_msgs::Localization2DMsg& msg) {
-  // const Vector2f init_loc(msg.pose.x, msg.pose.y);
-  // const float init_angle = msg.pose.theta;
-  // printf("Initialize: (%f,%f) %f\u00b0\n",
-  //        init_loc.x(),
-  //        init_loc.y(),
-  //        RadToDeg(init_angle));
-  // slam_.InitializePose(init_loc, init_angle);
-
-  slam_.GTSAM_TEST();
+  const Vector2f init_loc(msg.pose.x, msg.pose.y);
+  const float init_angle = msg.pose.theta;
+  printf("Initialize: (%f,%f) %f\u00b0\n",
+         init_loc.x(),
+         init_loc.y(),
+         RadToDeg(init_angle));
+  slam_.InitializePose(init_loc, init_angle);
 }
 
 int main(int argc, char** argv) {
@@ -168,14 +166,14 @@ int main(int argc, char** argv) {
 
   slam_.CreateVisPublisher(&n);
 
-  // ros::Subscriber laser_sub = n.subscribe(
-  //     FLAGS_laser_topic.c_str(),
-  //     1,
-  //     LaserCallback);
-  // ros::Subscriber odom_sub = n.subscribe(
-  //     FLAGS_odom_topic.c_str(),
-  //     1,
-  //     OdometryCallback);
+  ros::Subscriber laser_sub = n.subscribe(
+      FLAGS_laser_topic.c_str(),
+      1,
+      LaserCallback);
+  ros::Subscriber odom_sub = n.subscribe(
+      FLAGS_odom_topic.c_str(),
+      1,
+      OdometryCallback);
   ros::Subscriber initial_pose_sub = n.subscribe(
       FLAGS_init_topic.c_str(),
       1,
