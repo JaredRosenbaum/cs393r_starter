@@ -163,13 +163,16 @@ void SLAM::ObserveOdometry(const Vector2f& odom_loc, const float odom_angle) {
             odom_translation_change += odom_translation;
             odom_rotation_change += odom_rotation;
 
-            // Update location estimate of the robot based on the last reference pose
-            odom_change_.loc = odom_loc - reference_odom_pose_.loc;
-            odom_change_.angle = AngleDiff(odom_angle, reference_odom_pose_.angle);
+            // updating odometry change in odom frame for use in later algorithm
+            Eigen::Matrix3f transform;
+            transform << cos(reference_odom_pose_.angle), -sin(reference_odom_pose_.angle), reference_odom_pose_.loc.x(),
+                            sin(reference_odom_pose_.angle), cos(reference_odom_pose_.angle), reference_odom_pose_.loc.y(),
+                            0, 0, 1;
+            odom_change_ = transformPoseCopy(Pose(odom_loc.x(), odom_loc.y(), odom_angle), transform.inverse());
 
             // Proceed with preparing a motion model when meeting threshold
             if ((odom_translation_change > ODOM_TRANSLATION_THRESHOLD || odom_rotation_change > ODOM_ROTATION_THRESHOLD) && !ready_for_slam_update_) {
-                // ready_for_slam_update_ = true;
+                ready_for_slam_update_ = true;
 
                 // Update reference pose
                 reference_odom_pose_.loc = odom_loc;
