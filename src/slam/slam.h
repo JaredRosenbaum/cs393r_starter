@@ -145,10 +145,10 @@ class SLAM {
   // !!!
   int depth_;
   int gtsam_timer_;
+  int iteration_counter_;
   std::vector<std::shared_ptr<SequentialNode>> chain_;
+  std::shared_ptr<gtsam::Pose2> starting_pose_;
 
-  gtsam::Pose2 starting_pose_;
-  
   void optimizeChain();
 
   void iterateSLAM(
@@ -162,8 +162,7 @@ class SLAM {
   std::shared_ptr<std::vector<Candidate>> generateCandidates(
       Pose odom,
       std::vector<Eigen::Vector2f> points,
-      std::shared_ptr<rasterization::LookupTable> &ref,
-      const std::vector<Eigen::Vector2f> &ref_points);
+      std::shared_ptr<rasterization::LookupTable> &ref);
   
   std::variant<bool, Eigen::Matrix3d> calculateCovariance(std::shared_ptr<std::vector<Candidate>> &candidates);
 
