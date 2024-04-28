@@ -11,7 +11,7 @@ int main (int argc, char **argv)
     // auto independent_model {motion_model::IndependentMotionModel(odom)};
     // std::cout << independent_model.evaluate(eval) << std::endl;
     
-    auto model {motion_model::MultivariateMotionModel(odom)};
+    auto model {motion_model::MultivariateMotionModel(odom, odom)};
     std::cout << model.evaluate(eval) << std::endl;
     
     return 0;

@@ -105,6 +105,14 @@ public:
         std::cout << "Saved image to " << path << std::endl;
     }
 
+    std::vector<Eigen::Vector2f> corners()
+    {
+        std::vector<Eigen::Vector2f> corners;
+        corners.push_back(*_lower_left_corner);
+        corners.push_back(*_upper_right_corner);
+        return corners;
+    }
+
 private:
     const float _resolution;
     const float _sigma;

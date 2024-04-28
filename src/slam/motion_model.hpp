@@ -12,19 +12,18 @@ namespace motion_model {
 class MultivariateMotionModel
 {
 public:
-    MultivariateMotionModel(const Eigen::Vector3d &odom)
+    MultivariateMotionModel(const Eigen::Vector3d &mu, const Eigen::Vector3d &odom_mag)
     {
         // storing values and precomputing ones needed for computation
-        _mu = std::make_unique<const Eigen::Vector3d>(odom);
+        _mu = std::make_unique<const Eigen::Vector3d>(mu);
         
-        Eigen::Vector2d translation_vector(odom.x(), odom.y());
-        const double translation {translation_vector.norm()};
-        const double rotation {std::abs(odom.z())};
-        // const double k2 {0.5d};
-        // const double k3 {0.1d};
-        // const double k4 {0.1d};
-        // const double k5 {0.5d};
-        // const double k6 {0.5d};
+        Eigen::Vector2d translation_vector;
+        double translation;
+        double rotation;
+
+        translation_vector = Eigen::Vector2d(odom_mag.x(), odom_mag.y());
+        translation = translation_vector.norm();
+        rotation = std::abs(odom_mag.z());
 
         Eigen::Matrix3d cov;
         cov << std::max(pow(K5 * translation + K4 * rotation, 2), 0.1), 0.d, 0.d,
