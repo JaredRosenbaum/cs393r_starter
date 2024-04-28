@@ -99,6 +99,7 @@ struct SequentialNode {
     {
         // raw_odometry = odom;
         lookup_table = std::make_shared<rasterization::LookupTable>(points, LOOKUP_TABLE_RESOLUTION, LOOKUP_TABLE_SIGMA);
+        // lookup_table->exportAsPPM("/home/dev/cs393r_starter/images/lookup_table.ppm");
     }
 }; // struct SequentialNode
 
@@ -155,7 +156,7 @@ class SLAM {
     Pose &odom,
     std::vector<Eigen::Vector2f> &cloud);
   
-  std::variant<bool, std::pair<gtsam::Pose2, gtsam::Matrix>> pairwiseComparison(
+  std::pair<gtsam::Pose2, gtsam::Matrix> pairwiseComparison(
       std::shared_ptr<SequentialNode> &new_node,
       std::shared_ptr<SequentialNode> &existing_node);
 
@@ -165,6 +166,8 @@ class SLAM {
       std::shared_ptr<rasterization::LookupTable> &ref);
   
   std::variant<bool, Eigen::Matrix3d> calculateCovariance(std::shared_ptr<std::vector<Candidate>> &candidates);
+
+  void detectLoops(std::shared_ptr<SequentialNode> &state);
 
   Eigen::Matrix3f getTransformChain(int ind2, int ind1=0);
   Eigen::Matrix3f pose2Transform(const Pose &pose);

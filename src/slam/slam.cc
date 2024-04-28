@@ -68,6 +68,8 @@ void SLAM::InitializePose(const Eigen::Vector2f& loc, const float angle) {
   current_pose_.angle = angle;
   starting_pose_ = std::make_shared<gtsam::Pose2>(loc.x(), loc.y(), angle);
   visualization::ClearVisualizationMsg(vis_msg_);
+  vis_msg_.header.stamp = ros::Time::now();
+  vis_pub_.publish(vis_msg_);
   odom_initialized_ = false;
 }
 
@@ -214,13 +216,13 @@ void SLAM::iterateSLAM(
     std::vector<Eigen::Vector2f> &cloud)
 {
     auto start_time {std::chrono::high_resolution_clock::now()};
-    std::cout << "\n\n=====================================" << std::endl;
-    std::cout << "UPDATE " << iteration_counter_ << std::endl;
-    std::cout << "=====================================" << std::endl;
+    // std::cout << "\n\n=====================================" << std::endl;
+    // std::cout << "UPDATE " << iteration_counter_ << std::endl;
+    // std::cout << "=====================================" << std::endl;
 
     // . add new sequential state
     auto new_state {std::make_shared<SequentialNode>(chain_.size(), odom, cloud)};
-    std::cout << "Creating new state with ID " << new_state->id << " and " << cloud.size() << " points." << std::endl;
+    // std::cout << "Creating new state with ID " << new_state->id << " and " << cloud.size() << " points." << std::endl;
 
     // compare with previous state and populate pose and covariance
     if (!chain_.empty()) { // if data immediately before this exists
@@ -230,26 +232,19 @@ void SLAM::iterateSLAM(
         // perform the update (results same for sequenial and non-sequential scans, but the way they are stored is different)
         auto csm_results {pairwiseComparison(new_state, chain_[index])};
 
-        // TODO how to handle bad comparison here?
-        // if (std::holds_alternative<bool>(csm_results)) {
-        //     std::cerr << "Invalid CSM results for " << new_state->id << ". Unable to add to chain." << std::endl;
+        // convert relative pose to absolute pose using previous absolute pose
+        new_state->rel_pose = csm_results.first;
+        new_state->rel_cov = csm_results.second;
+        new_state->est_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->est_pose);
 
-        // } else {
-            // convert relative pose to absolute pose using previous absolute pose
-            auto valid_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(csm_results)}; //. shouldnt be necessary
+        auto end_time {std::chrono::high_resolution_clock::now()};
+        auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
+        // std::cout << ">> Finished sequential pose update in " << time_duration.count() << "us" << std::endl;
+        
+        // add to the chain
+        chain_.push_back(new_state);
+        // std::cout << "State " << new_state->id << " added to chain!" << std::endl;
 
-            new_state->rel_pose = valid_results.first;
-            new_state->rel_cov = valid_results.second;
-            new_state->est_pose = transformPoseCopy(gtsam::Pose2(odom.loc.x(), odom.loc.y(), odom.angle), chain_[static_cast<int>(chain_.size()) - 1]->est_pose);
-
-            auto end_time {std::chrono::high_resolution_clock::now()};
-            auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
-            std::cout << ">> Finished sequential pose update in " << time_duration.count() << "us" << std::endl;
-            
-            // add to the chain
-            chain_.push_back(new_state);
-            std::cout << "State " << new_state->id << " added to chain!" << std::endl;
-        // }
     } else { // if no previous data in the chain to compare to
         new_state->rel_pose = gtsam::Pose2(0, 0, 0);
         new_state->rel_cov = gtsam::Matrix(Eigen::Matrix3d::Zero());
@@ -257,10 +252,10 @@ void SLAM::iterateSLAM(
 
         // add to the chain
         chain_.push_back(new_state);
-        std::cout << "State " << new_state->id << " added to chain!" << std::endl;
+        // std::cout << "State " << new_state->id << " added to chain!" << std::endl;
     }
 
-    std::cout << "Abs:\n" << new_state->est_pose << "\nRel:\n" << new_state->rel_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
+    // std::cout << "Abs:\n" << new_state->est_pose << "\nRel:\n" << new_state->rel_pose << "\nCov:\n" << new_state->rel_cov << std::endl;
 
     // . now create all non-sequential states
     // for each comparison
@@ -272,28 +267,25 @@ void SLAM::iterateSLAM(
         // get pose and covariance
         auto csm_results {pairwiseComparison(new_state, chain_[index])};
 
-        // if (std::holds_alternative<bool>(csm_results)) {
-        //     std::cerr << "Invalid CSM results for " << new_state->id << ". Unable to add to chain." << std::endl;
-        // } else {
-            auto valid_results {std::get<std::pair<gtsam::Pose2, gtsam::Matrix>>(csm_results)}; //.shouldnt be necessary
+        // store them appropriately
+        NonsequentialNode node;
+        node.parent = chain_[index]->id;
+        node.rel_odom = transformPoseCopy(odom, chain_[index]->rel_odom);
+        node.rel_pose = csm_results.first;
+        node.rel_cov = csm_results.second;
+        node.est_pose = transformPoseCopy(csm_results.first, chain_[index]->est_pose);
+        new_state->nodes.push_back(node);
 
-            // store them appropriately
-            NonsequentialNode node;
-            node.parent = chain_[index]->id;
-            node.rel_odom = transformPoseCopy(odom, chain_[index]->rel_odom);
-            node.rel_pose = valid_results.first;
-            node.rel_cov = valid_results.second;
-            node.est_pose = transformPoseCopy(valid_results.first, chain_[index]->est_pose);
-            new_state->nodes.push_back(node);
-
-            // std::cout << "Abs:\n" << node.est_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
-        // }
+        // std::cout << "Abs:\n" << node.est_pose << "\nPose:\n" << node.rel_pose << "\nCov:\n" << node.rel_cov << std::endl;
     }
+
+    // . check for loops
+    detectLoops(new_state);
 
     // . perform pose graph optimization using GTSAM
     gtsam_timer_++;
     if (gtsam_timer_ == GTSAM_FREQUENCY) {
-        std::cout << "Running through GTSAM!" << std::endl;
+        // std::cout << "Running through GTSAM!" << std::endl;
         optimizeChain();
         gtsam_timer_ = 0;
     }
@@ -315,10 +307,18 @@ void SLAM::iterateSLAM(
         // visualize pose
         visualization::DrawParticle(Eigen::Vector2f(chain_[i]->est_pose.x(), chain_[i]->est_pose.y()), chain_[i]->est_pose.theta(), vis_msg_);
 
-        // and visualize all non-sequential ones to make sure they're in the right spot
-        for (const auto &node : chain_[i]->nodes) {
-            visualization::DrawParticle(Eigen::Vector2f(node.est_pose.x(), node.est_pose.y()), node.est_pose.theta(), vis_msg_);
-        }
+        // // and visualize all non-sequential ones to make sure they're in the right spot
+        // for (const auto &node : chain_[i]->nodes) {
+        //     visualization::DrawParticle(Eigen::Vector2f(node.est_pose.x(), node.est_pose.y()), node.est_pose.theta(), vis_msg_);
+            
+        //     // draw lines between non-sequential poses
+        //     visualization::DrawLine(Eigen::Vector2f(chain_[node.parent]->est_pose.x(), chain_[node.parent]->est_pose.y()), Eigen::Vector2f(chain_[i]->est_pose.x(), chain_[i]->est_pose.y()), 0xF633FF, vis_msg_);
+        // }
+    }
+
+    // draw lines between all sequential poses
+    for (int i = 1; i < static_cast<int>(chain_.size()); i++) {
+        visualization::DrawLine(Eigen::Vector2f(chain_[i - 1]->est_pose.x(), chain_[i - 1]->est_pose.y()), Eigen::Vector2f(chain_[i]->est_pose.x(), chain_[i]->est_pose.y()), 0xF633FF, vis_msg_);
     }
 
     // visualize the selected cloud from CSM
@@ -333,7 +333,7 @@ void SLAM::iterateSLAM(
 
     auto end_time {std::chrono::high_resolution_clock::now()};
     auto time_duration {std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time)};
-    std::cout << ">> Finished SLAM update in " << time_duration.count() << "us" << std::endl;
+    std::cout << ">> Finished SLAM update " << iteration_counter_ << " in " << time_duration.count() << "us" << std::endl;
     iteration_counter_++;
 }
 
@@ -389,6 +389,27 @@ void SLAM::optimizeChain()
     gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimate);
     gtsam::Values optimized_result = optimizer.optimize();
 
+    // check the results of the optimization to make sure they aren't crazy, don't update the estimates if so
+    auto checkDistance = [this](gtsam::Pose2 p1, gtsam::Pose2 p2) {
+        float dist_sqrd_tolerance {5.0};
+        auto dist_sqrd {pow(p1.x() - p2.x(), 2) + pow(p1.y() - p2.y(), 2)};
+        if (dist_sqrd > dist_sqrd_tolerance) {
+            std::cout << p1 << ", " << p2 << " -> " << dist_sqrd << std::endl;
+            return false;
+        }
+        return true;
+    };
+    
+    int verification_graph_id {0};
+    for (std::size_t i = 1; i < chain_.size(); i++) {
+        verification_graph_id++;
+        auto comp_pose = transformPoseCopy(optimized_result.at<gtsam::Pose2>(verification_graph_id), chain_[0]->est_pose);
+        if (!checkDistance(chain_[i]->est_pose, comp_pose)) {
+            std::cout << "Distance between two poses exceeds threshold! No updating from GTSAM..." << std::endl;
+            return;
+        }
+    }
+
     // iterate over the data and update it
     int new_graph_id {0};
     for (std::size_t i = 1; i < chain_.size(); i++) {
@@ -405,10 +426,81 @@ void SLAM::optimizeChain()
 }
 
 // -------------------------------------------
+// * Detect Loops
+// -------------------------------------------
+
+void SLAM::detectLoops(std::shared_ptr<SequentialNode> &state)
+{
+    const double loop_closure_radius {2.0};
+    const int ignore_depth {POSE_GRAPH_CONNECTION_DEPTH};
+    const int max_loop_closure_constraints {5};
+    int constraint_counter {};
+    
+    // search around abs location for other data close to
+    if (!(chain_.size() > 1 + ignore_depth)) {return;}
+
+    auto computeDisplacement = [](const SequentialNode &state1, const SequentialNode &state2)
+    {
+        return sqrt(pow(state1.est_pose.x() - state2.est_pose.x(), 2) + pow(state1.est_pose.y() - state2.est_pose.y(), 2));
+    };
+
+    for (std::size_t i = 0; i < chain_.size() - 1 - ignore_depth; i++) {
+        // make sure we don't add too many constraints (just to make sure this doesn't decrease performance too much)
+        if (constraint_counter >= max_loop_closure_constraints) {
+            return;
+        }
+
+        // check if the displacement is sufficiently close
+        // std::cout << "\tDistance between " << state->id << " and " << chain_[i]->id << ": " << computeDisplacement(*state, *chain_[i]) << std::endl;
+        if (!(computeDisplacement(*state, *chain_[i]) < loop_closure_radius)) {
+            continue;
+        }
+
+        // generate candidates
+        auto rel_odom {Pose(
+            state->est_pose.x() - chain_[i]->est_pose.x(), 
+            state->est_pose.y() - chain_[i]->est_pose.y(),
+            state->est_pose.theta() - chain_[i]->est_pose.theta()
+        )};
+        auto candidates {generateCandidates(rel_odom, state->points, chain_[i]->lookup_table)};
+
+        // calculate covariance
+        auto covariance {calculateCovariance(candidates)};
+        if (std::holds_alternative<bool>(covariance)) {
+            continue;
+        }
+
+        auto cov_matrix {std::get<Eigen::Matrix3d>(covariance)};
+        // and get the best pose
+        Pose best_pose {(*candidates)[0].relative_pose};
+        double best_prob {(*candidates)[0].p};
+        for (std::size_t i = 1; i < candidates->size(); i++) {
+            if ((*candidates)[i].p > best_prob) {
+                best_prob = (*candidates)[i].p;
+                best_pose = (*candidates)[i].relative_pose;
+            }
+        }
+
+        // generate a new non-sequential node to add to the state
+        NonsequentialNode loop_closure_node;
+        loop_closure_node.parent = chain_[i]->id;
+        loop_closure_node.rel_odom = transformPoseCopy(rel_odom, chain_[i]->rel_odom);
+        loop_closure_node.rel_cov = gtsam::Matrix(cov_matrix);
+        loop_closure_node.rel_pose = gtsam::Pose2(best_pose.loc.x(), best_pose.loc.y(), best_pose.angle);
+        loop_closure_node.est_pose = transformPoseCopy(gtsam::Pose2(best_pose.loc.x(), best_pose.loc.y(), best_pose.angle), chain_[i]->est_pose);
+
+        state->nodes.push_back(loop_closure_node);
+        constraint_counter++;
+
+        // std::cout << "\tAdded a loop closure node between " << state->id << " and " << chain_[i]->id << "!" << std::endl; 
+    }
+}
+
+// -------------------------------------------
 // * Updating Pairs
 // -------------------------------------------
 
-std::variant<bool, std::pair<gtsam::Pose2, gtsam::Matrix>> SLAM::pairwiseComparison(
+std::pair<gtsam::Pose2, gtsam::Matrix> SLAM::pairwiseComparison(
     std::shared_ptr<SequentialNode> &new_node,
     std::shared_ptr<SequentialNode> &existing_node)
 {
@@ -433,8 +525,8 @@ std::variant<bool, std::pair<gtsam::Pose2, gtsam::Matrix>> SLAM::pairwiseCompari
     if (std::holds_alternative<bool>(covariance)) {
         auto motion_model {motion_model::MultivariateMotionModel(Eigen::Vector3d(rel_odom.loc.x(), rel_odom.loc.y(), rel_odom.angle))};
         cov_matrix = motion_model.get_covariance();
-        std::cout << "Bad covariance detected for " << new_node->id << " and " << existing_node->id << std::endl;
-        std::cout << "Overriding with pure odometry covariance." << std::endl;
+        // std::cout << "Bad covariance detected for " << new_node->id << " and " << existing_node->id << std::endl;
+        // std::cout << "Overriding with pure odometry covariance." << std::endl;
 
         best_pose = rel_odom;
     }
