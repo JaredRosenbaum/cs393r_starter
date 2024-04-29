@@ -142,8 +142,6 @@ class SLAM {
   bool ready_for_slam_update_;    // motion model 
   Pose current_pose_;
 
-
-  // !!!
   int depth_;
   int gtsam_timer_;
   int iteration_counter_;
