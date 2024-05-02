@@ -15,7 +15,6 @@ int main(int argc, char** argv)
         points.push_back(Eigen::Vector2f(dis(gen), dis2(gen)));
     }
 
-    //* Create lookup tables
     // creating coarse and fine lookup tables
     const float sigma {0.1f};
 
@@ -40,14 +39,14 @@ int main(int argc, char** argv)
     std::cout << "\t>> Created fine lookup table in " << fine_table_duration.count() << " us." << std::endl;
 
     // saving images to make sure pixels look good
-    coarse_table->exportAsPPM("/home/jared/CS393/cs393r_starter/images/pixels_coarse.ppm");
-    coarse_table->exportAsPPMRandom("/home/jared/CS393/cs393r_starter/images/pixels_coarse_random.ppm");
-    fine_table->exportAsPPM("/home/jared/CS393/cs393r_starter/images/pixels_fine.ppm");
-    fine_table->exportAsPPMRandom("/home/jared/CS393/cs393r_starter/images/pixels_fine_random.ppm");
+    coarse_table->exportAsPPM("/home/dev/cs393r_starter/images/pixels_coarse.ppm");
+    coarse_table->exportAsPPMRandom("/home/dev/cs393r_starter/images/pixels_coarse_random.ppm");
+    fine_table->exportAsPPM("/home/dev/cs393r_starter/images/pixels_fine.ppm");
+    fine_table->exportAsPPMRandom("/home/dev/cs393r_starter/images/pixels_fine_random.ppm");
 
     float score {};
     for (const auto &point : points) {
-        score += fine_table->lookupUnnormalizedProbability(point);
+        score += fine_table->evaluate(point);
     }
     // score /= (points.size() * fine_table->getPeak());
     score /= (points.size());
@@ -60,7 +59,7 @@ int main(int argc, char** argv)
     for (int i = 0; i < n_loops; i++) {
         float score {};
         for (const auto &point : points) {
-            score += coarse_table->lookupUnnormalizedProbability(point);
+            score += coarse_table->evaluate(point);
         }
     }
     auto coarse_end_time {std::chrono::high_resolution_clock::now()};
@@ -71,7 +70,7 @@ int main(int argc, char** argv)
     for (int i = 0; i < n_loops; i++) {
         float score {};
         for (const auto &point : points) {
-            score += fine_table->lookupUnnormalizedProbability(point);
+            score += fine_table->evaluate(point);
         }
     }
     auto fine_end_time {std::chrono::high_resolution_clock::now()};
@@ -79,29 +78,29 @@ int main(int argc, char** argv)
     std::cout << "\t>> " << n_loops << " loops of fine lookups finished in " << fine_duration.count() << " ms.\n\t\tAverage time per loop: " << static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(fine_duration).count()) / n_loops << " us." <<  std::endl;
 
     // checking to make sure coarse and fine tables decay similarly as the "scan" is further perturbed from where it actually is
-    // for (int i = 0; i < 1000; i++) {
-    //     float coarse_score {};
-    //     float fine_score {};
+    for (int i = 0; i < 1000; i++) {
+        float coarse_score {};
+        float fine_score {};
 
-    //     for (const auto &point : points) {
-    //         auto prob {coarse_table->lookupUnnormalizedProbability(point)};
-    //         coarse_score += prob;
-    //     }
-    //     // coarse_score /= (coarse_table->getPeak() * points.size());
-    //     coarse_score /= (points.size());
+        for (const auto &point : points) {
+            auto prob {coarse_table->evaluate(point)};
+            coarse_score += prob;
+        }
+        // coarse_score /= (coarse_table->getPeak() * points.size());
+        coarse_score /= (points.size());
 
-    //     for (auto &point : points) {
-    //         auto prob {fine_table->lookupUnnormalizedProbability(point)};
-    //         fine_score += prob;
-    //         point.y() += 0.01;
-    //     }
-    //     // fine_score /= (fine_table->getPeak() * points.size());
-    //     fine_score /= (points.size());
+        for (auto &point : points) {
+            auto prob {fine_table->evaluate(point)};
+            fine_score += prob;
+            point.y() += 0.01;
+        }
+        // fine_score /= (fine_table->getPeak() * points.size());
+        fine_score /= (points.size());
 
-    //     if (i % 10 == 0) {
-    //         std::cout << coarse_score << ", " << fine_score << std::endl;
-    //     }
-    // }
+        if (i % 10 == 0) {
+            std::cout << coarse_score << ", " << fine_score << std::endl;
+        }
+    }
 
     std::cout << "FIN" << std::endl;
     return 0;

@@ -44,10 +44,7 @@ using std::vector;
 using namespace math_util;
 using namespace ros_helpers;
 
-// +
 #include "parameters.h"
-// +
-
 
 namespace {
 ros::Publisher drive_pub_;
@@ -175,12 +172,10 @@ void Navigation::ObservePointCloud(const vector<Vector2f>& cloud,
 
 void Navigation::Run() {
   // TODO Testing
-  drive_msg_.curvature = 0;
-  drive_msg_.velocity = 0.25;
+  drive_msg_.curvature = 0.1;
+  drive_msg_.velocity = -1.0;
   drive_msg_.header.stamp = ros::Time::now();
   drive_pub_.publish(drive_msg_);
-
-
 
   // This function gets called 20 times a second to form the control loop.
 

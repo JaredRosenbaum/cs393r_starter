@@ -21,8 +21,12 @@ public:
         generateLookupTable(points);
     }
 
-    double lookupUnnormalizedProbability(const Eigen::Vector2f &point)
+    double evaluate(const Eigen::Vector2f &point)
     {
+        if (_table == nullptr) {
+            // std::cout << "Table has not been created." << std::endl;
+            return 0.d;
+        }
         // calculate indices of point in image
         const auto indices {computeIndices(point)};
         if (indices[0] == -1 || indices[1] == -1) {return 0.d;}
@@ -38,6 +42,10 @@ public:
 
     void exportAsPPM(const std::string &path)
     {
+        if (_table == nullptr) {
+            std::cout << "Table has not been created." << std::endl;
+            return;
+        }
         const auto pixels = *_table;
         std::ofstream outFile(path);
 
@@ -47,7 +55,7 @@ public:
         outFile << "255\n"; // Maximum color value (for 8-bit grayscale)
 
         // find highest magnitude pixel
-        int max_value {};
+        float max_value {};
         for (const auto &row : pixels) {
             for (const auto &value : row) {
                 if (value > max_value) {max_value = value;}
@@ -70,6 +78,10 @@ public:
 
     void exportAsPPMRandom(const std::string &path)
     {
+        if (_table == nullptr) {
+            std::cout << "Table has not been created." << std::endl;
+            return;
+        }
         const auto pixels = *_table;
         std::ofstream outFile(path);
 
@@ -91,6 +103,14 @@ public:
         }
         outFile.close();
         std::cout << "Saved image to " << path << std::endl;
+    }
+
+    std::vector<Eigen::Vector2f> corners()
+    {
+        std::vector<Eigen::Vector2f> corners;
+        corners.push_back(*_lower_left_corner);
+        corners.push_back(*_upper_right_corner);
+        return corners;
     }
 
 private:
@@ -127,6 +147,11 @@ private:
 
     void generateLookupTable(const std::vector<Eigen::Vector2f> &points)
     {
+        if (points.empty()) {
+            std::cout << "Table cannot be created, no points provided." << std::endl;
+            return;
+        }
+
         // - iterate over points, find min and max x, y
         float min_x, max_x, min_y, max_y;
         min_x = min_y = std::numeric_limits<float>::max();
@@ -138,6 +163,7 @@ private:
             if (point.x() > max_x) {max_x = point.x();}
             if (point.y() > max_y) {max_y = point.y();}
         }
+
         float buffer {1.f}; // m // setting to be 3*_sigma at minimum to avoid issues with indexing when seeding Gaussians
         _lower_left_corner = std::make_unique<const Eigen::Vector2f>(min_x - buffer, min_y - buffer);
         _upper_right_corner = std::make_unique<const Eigen::Vector2f>(max_x + buffer, max_y + buffer);
@@ -145,10 +171,9 @@ private:
         // - now build an "image" sized for these limits
         std::size_t size_x {static_cast<std::size_t>((_upper_right_corner->x() - _lower_left_corner->x()) / _resolution)};
         std::size_t size_y {static_cast<std::size_t>((_upper_right_corner->y() - _lower_left_corner->y()) / _resolution)};
-
+        
         _table = std::make_unique<std::vector<std::vector<double>>>(size_x, std::vector<double>(size_y, 0.d));
 
-        // ! Steven, I commented this out because it was obnoxious <3
         // std::cout << "Created an lookup table of size [" << _table->size() << ", " << _table->at(0).size() << "] with lower left corner [" << _lower_left_corner->transpose() << "] and upper right corner [" << _upper_right_corner->transpose() << "]." << std::endl;
 
         for (const auto &point : points) {

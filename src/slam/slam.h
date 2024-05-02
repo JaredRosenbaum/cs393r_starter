@@ -21,6 +21,8 @@
 
 #include <algorithm>
 #include <vector>
+#include <memory>
+#include <variant>
 
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Geometry"
@@ -31,6 +33,23 @@
 #include "amrl_msgs/VisualizationMsg.h"
 
 #include "rasterization.hpp"
+#include "motion_model.hpp"
+#include "parameters.h"
+
+#include <gtsam/base/Vector.h>
+#include <gtsam/base/Matrix.h>
+#include <gtsam/geometry/Pose2.h>
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/inference/Key.h>
+#include <gtsam/slam/PriorFactor.h>
+#include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/nonlinear/NonlinearFactor.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <gtsam/nonlinear/Values.h>
+#include <gtsam/nonlinear/Marginals.h>
+#include <gtsam/nonlinear/GaussNewtonOptimizer.h>
+#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <boost/optional.hpp>
 
 #ifndef SRC_SLAM_H_
 #define SRC_SLAM_H_
@@ -38,22 +57,51 @@
 namespace slam {
 
 struct Pose {
-  Eigen::Vector2f loc;
-  float angle;
-};
+    Eigen::Vector2f loc;
+    float angle;
+    Pose() {}
+    Pose (float x, float y, float theta)
+    : loc(Eigen::Vector2f(x, y)), angle(theta) {}
+}; // struct Pose
 
 struct Candidate {
-  Pose pose;    // relative to previous pose frame
-  // std::vector<Eigen::Vector2f> point_cloud;
-  double p_motion = 0;
-  double p_scan = 0;
-};
+    Pose relative_pose;
+    double p_motion {};
+    double p_scan {};
+    double p {};
+}; // struct Candidate
 
-struct State {
-  Pose pose;      // relative to previous pose frame
-  Eigen::Matrix3f cov;
-  std::vector<Eigen::Vector2f> point_cloud;   // relative to current pose frame
-};
+struct NonsequentialNode {
+    int parent;
+    Pose rel_odom;
+    
+    int graph_id;
+    gtsam::Pose2 rel_pose;
+    gtsam::Matrix rel_cov;
+    gtsam::Pose2 est_pose;
+}; // struct NonsequentialNode
+
+struct SequentialNode {
+    const int id;
+    const Pose rel_odom;
+    const std::vector<Eigen::Vector2f> points; 
+    std::shared_ptr<rasterization::LookupTable> lookup_table;
+    
+    std::vector<NonsequentialNode> nodes;
+    
+    int graph_id;
+    gtsam::Pose2 rel_pose;
+    gtsam::Matrix rel_cov;
+    gtsam::Pose2 est_pose;
+
+    SequentialNode(const int &identifier, const Pose &odom, const std::vector<Eigen::Vector2f> &cloud) 
+    : id(identifier), rel_odom(odom), points(cloud)
+    {
+        // raw_odometry = odom;
+        lookup_table = std::make_shared<rasterization::LookupTable>(points, LOOKUP_TABLE_RESOLUTION, LOOKUP_TABLE_SIGMA);
+        // lookup_table->exportAsPPM("/home/dev/cs393r_starter/images/lookup_table.ppm");
+    }
+}; // struct SequentialNode
 
 class SLAM {
  public:
@@ -72,49 +120,74 @@ class SLAM {
                     float range_max,
                     float angle_min,
                     float angle_max);
-  
-  // Compute point clouds for each candidate and score their probabilities
-  void ConfigureCandidates(const std::vector<Eigen::Vector2f> &point_cloud, const std::vector<Eigen::Vector2f> &stored_point_cloud);
 
   // Observe new odometry-reported location.
   void ObserveOdometry(const Eigen::Vector2f& odom_loc,
                        const float odom_angle);
-  
-  // Calculate motion model for scan matching
-  void PrepareMotionModel(const Pose odom_change);
-
-  // Get transformation matrix between two states
-  Eigen::Matrix3f StateTransform(int ind2, int ind1 = 0);
 
   // Get latest map.
   std::vector<Eigen::Vector2f> GetMap();
 
   // Get latest robot pose.
-  void GetPose(Eigen::Vector2f* loc, float* angle) const;
-
-  // Calculate covariance for a set of candidates
-  Eigen::Matrix3f SLAM::CalculateCovariance(std::vector<Candidate> candidates);
+  void GetPose(Eigen::Vector2f* loc, float* angle);
 
  private:
   ros::Publisher vis_pub_;
   amrl_msgs::VisualizationMsg vis_msg_;
 
-  Pose current_pose_;         // current estimate of the robot pose
-  Pose reference_scan_pose_;  // reference scan match pose
-
   bool odom_initialized_; // odometry flag
   Pose prev_odom_pose_;   // previous odometry-reported pose
   Pose reference_odom_pose_;
-  bool motion_model_ready_;    // motion model 
+  Pose odom_change_;
+  bool ready_for_slam_update_;    // motion model 
+  Pose current_pose_;
+
+  int depth_;
+  int gtsam_timer_;
+  int iteration_counter_;
+  std::vector<std::shared_ptr<SequentialNode>> chain_;
+  std::shared_ptr<gtsam::Pose2> starting_pose_;
+
+  void optimizeChain();
+  bool iterateGTSAM();
+
+  void iterateSLAM(
+    Pose &odom,
+    std::vector<Eigen::Vector2f> &cloud);
   
-  std::vector<Eigen::Vector2f> current_point_cloud_;  // laser scan at current time in robot frame
-  std::vector<Eigen::Vector2f> previous_point_cloud_;  // laser scan at current time in robot frame
+  std::pair<gtsam::Pose2, gtsam::Matrix> pairwiseComparison(
+      std::shared_ptr<SequentialNode> &new_node,
+      std::shared_ptr<SequentialNode> &existing_node);
 
-  std::vector<Candidate> candidates_;   // candidate vector of possible next states
-  std::vector<State> state_chain_;      // vector of selected states
+  std::shared_ptr<std::vector<Candidate>> generateCandidates(
+      Pose odom,
+      std::vector<double> odom_mag,
+      std::vector<Eigen::Vector2f> points,
+      std::shared_ptr<rasterization::LookupTable> &ref,
+      motion_model::MultivariateMotionModel &motion_model);
+  
+  std::variant<bool, Eigen::Matrix3d> calculateCovariance(std::shared_ptr<std::vector<Candidate>> &candidates);
 
+  void detectLoops(std::shared_ptr<SequentialNode> &state);
 
-};
+  Eigen::Matrix3f getTransformChain(int ind2, int ind1=0);
+  Eigen::Matrix3f pose2Transform(const Pose &pose);
+
+  void transformPose(Pose &pose, const Eigen::Matrix3f &T);
+  void transformPose(Pose &pose, const Pose &P);
+  Pose transformPoseCopy(const Pose &pose, const Eigen::Matrix3f &T);
+  Pose transformPoseCopy(const Pose &pose, const Pose &P);
+  gtsam::Pose2 transformPoseCopy(const gtsam::Pose2 &pose, const Eigen::Matrix3f &T);
+  gtsam::Pose2 transformPoseCopy(const gtsam::Pose2 &pose, const gtsam::Pose2 &P);
+  void transformPoses(std::vector<Pose> &poses, const Eigen::Matrix3f &T);
+  void transformPoses(std::vector<Pose> &poses, const Pose &pose);
+  void transformPoint(Eigen::Vector2f &point, const Eigen::Matrix3f &T);
+  void transformPoint(Eigen::Vector2f &point, const Pose &pose);
+  void transformPoints(std::vector<Eigen::Vector2f> &points, const Eigen::Matrix3f &T);
+  void transformPoints(std::vector<Eigen::Vector2f> &points, const Pose &pose);
+
+}; // class SLAM
+
 }  // namespace slam
 
 #endif   // SRC_SLAM_H_
