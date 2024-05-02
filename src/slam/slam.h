@@ -165,10 +165,6 @@ class SLAM {
       std::vector<Eigen::Vector2f> points,
       std::shared_ptr<rasterization::LookupTable> &ref,
       motion_model::MultivariateMotionModel &motion_model);
-
-  std::shared_ptr<std::vector<Candidate>> generateClosureCandidates(
-      std::shared_ptr<SequentialNode> new_state,
-      std::shared_ptr<SequentialNode> existing_state);
   
   std::variant<bool, Eigen::Matrix3d> calculateCovariance(std::shared_ptr<std::vector<Candidate>> &candidates);
 

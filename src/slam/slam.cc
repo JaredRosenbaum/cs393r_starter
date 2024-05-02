@@ -438,7 +438,7 @@ void SLAM::detectLoops(std::shared_ptr<SequentialNode> &state)
 {
     const double loop_closure_radius {1.0};
     const int ignore_depth {POSE_GRAPH_CONNECTION_DEPTH};
-    const int max_loop_closure_constraints {5};
+    const int max_loop_closure_constraints {2};
     int constraint_counter {};
 
     // search around abs location for other data close to
@@ -635,77 +635,6 @@ std::pair<gtsam::Pose2, gtsam::Matrix> SLAM::pairwiseComparison(
 // * Generating Candidates
 // -------------------------------------------
 
-std::shared_ptr<std::vector<Candidate>> SLAM::generateClosureCandidates(
-    std::shared_ptr<SequentialNode> new_state,
-    std::shared_ptr<SequentialNode> existing_state)
-{
-    auto candidates {std::make_shared<std::vector<Candidate>>()};
-
-    // transform new_state points into frame of old state points using difference in estimated poses
-    Eigen::Matrix3f transform;
-    transform << cos(existing_state->est_pose.theta()), -sin(existing_state->est_pose.theta()), existing_state->est_pose.x(),
-                    sin(existing_state->est_pose.theta()), cos(existing_state->est_pose.theta()), existing_state->est_pose.y(),
-                    0, 0, 1;
-    auto pose_diff {transformPoseCopy(Pose(new_state->est_pose.x(), new_state->est_pose.y(), new_state->est_pose.theta()), transform.inverse())};
-
-    // sample alternative poses based on this difference
-    const int translation_periods = std::round(pose_diff.loc.norm() / ODOM_TRANSLATION_THRESHOLD);
-    const int rotation_periods = std::round(std::abs(pose_diff.angle) / ODOM_ROTATION_THRESHOLD);
-    const int periods = std::max(translation_periods, rotation_periods);
-
-    // iterate over candidates
-    const int x_iterations = std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION);
-    const int y_iterations = std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION);
-    const int theta_iterations = std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION);
-    // reserving space in candidates
-    candidates->reserve(x_iterations * y_iterations * theta_iterations);
-
-    // Triple loop to populate motion model poses with variance in each dimension. This creates a cube of next state possibilities
-    for (int theta_i = -theta_iterations; theta_i <= theta_iterations; theta_i++) {
-        for (int  y_i = -y_iterations; y_i <= y_iterations; y_i++) {
-            for (int x_i = -x_iterations; x_i <= x_iterations; x_i++) {
-                Candidate candidate;
-                
-                // . generate a candidate pose WRT to the body
-                auto candidate_pose {Pose(
-                        static_cast<float>(x_i * MOTION_MODEL_X_RESOLUTION * periods), 
-                        static_cast<float>(y_i * MOTION_MODEL_Y_RESOLUTION * periods), 
-                        static_cast<float>(theta_i * MOTION_MODEL_THETA_RESOLUTION * periods))
-                };
-
-                // . transform it back to the last frame (from pose diff)
-                transformPose(candidate_pose, pose_diff);
-
-                // . set the relative pose
-                candidate.relative_pose = candidate_pose;
-
-                // . transform the points to the candidate frame
-                auto cloud {new_state->points};
-                Eigen::Matrix3f transform {pose2Transform(candidate_pose)};
-                transformPoints(cloud, transform);
-
-                // . compute scan similarity
-                double p_scan {};
-                if (cloud.size() > 0) {
-                    for (const auto &point : cloud) {
-                        p_scan += existing_state->lookup_table->evaluate(point);
-                    }
-                    p_scan /= cloud.size();
-                }
-                candidate.p_scan = p_scan;
-
-                // . compute the combined probability
-                candidate.p = candidate.p_scan;
-                
-                // . add the candidate to the output
-                candidates->push_back(candidate);
-            }
-        }
-    }
-
-    return candidates;
-}
-
 std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
     Pose odom,
     std::vector<double> odom_mag,
@@ -722,9 +651,9 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
     const int periods = std::max(translation_periods, rotation_periods);
 
     // iterate over candidates
-    const int x_iterations = std::ceil(MOTION_MODEL_X_LIMIT / MOTION_MODEL_X_RESOLUTION);
-    const int y_iterations = std::ceil(MOTION_MODEL_Y_LIMIT / MOTION_MODEL_Y_RESOLUTION);
-    const int theta_iterations = std::ceil(MOTION_MODEL_THETA_LIMIT / MOTION_MODEL_THETA_RESOLUTION);
+    const int x_iterations = std::ceil(POSE_SAMPLING_X_LIMIT / POSE_SAMPLING_X_RESOLUTION);
+    const int y_iterations = std::ceil(POSE_SAMPLING_Y_LIMIT / POSE_SAMPLING_Y_RESOLUTION);
+    const int theta_iterations = std::ceil(POSE_SAMPLING_THETA_LIMIT / POSE_SAMPLING_THETA_RESOLUTION);
 
     // reserving space in candidates
     candidates->reserve(x_iterations * y_iterations * theta_iterations);
@@ -737,9 +666,9 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
                 
                 // . generate a candidate pose WRT to the body
                 auto candidate_pose {Pose(
-                        static_cast<float>(x_i * MOTION_MODEL_X_RESOLUTION * periods), 
-                        static_cast<float>(y_i * MOTION_MODEL_Y_RESOLUTION * periods), 
-                        static_cast<float>(theta_i * MOTION_MODEL_THETA_RESOLUTION * periods))
+                        static_cast<float>(x_i * POSE_SAMPLING_X_RESOLUTION * periods), 
+                        static_cast<float>(y_i * POSE_SAMPLING_Y_RESOLUTION * periods), 
+                        static_cast<float>(theta_i * POSE_SAMPLING_THETA_RESOLUTION * periods))
                 };
 
                 // . transform it back to the last frame (from odom)
@@ -767,7 +696,7 @@ std::shared_ptr<std::vector<Candidate>> SLAM::generateCandidates(
                 candidate.p_scan = p_scan;
 
                 // . compute the combined probability
-                candidate.p = PROBABILITY_WEIGHT * candidate.p_scan * candidate.p_motion;
+                candidate.p = candidate.p_scan * candidate.p_motion;
                 
                 // . add the candidate to the output
                 candidates->push_back(candidate);
